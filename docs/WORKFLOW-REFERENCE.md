@@ -7,7 +7,7 @@ It pairs with the [architecture whiteboard](https://www.figma.com/board/workflow
 
 ![Procurement approval workflow: the six-zone architecture, from intake through record, over the config tables that drive it](assets/workflow-board.png)
 
-## The one principle: config over canvas
+## First Principle: Config over Canvas
 
 The volatile parts of this workflow, the thresholds, the approvers, the vendor
 prices, the lead-time tolerances, live in **editable Data Tables**, not in the

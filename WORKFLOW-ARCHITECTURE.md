@@ -4,7 +4,7 @@ FieldOps Co. procurement approval, automated in n8n. This is the system view: th
 three workflows that make it up, what each does, how they relate, and what is on
 the roadmap. For the node-by-node runbook, see [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md).
 
-## The one principle: config over canvas
+## First Principle: Config over Canvas
 
 One workflow shape, N business units. The units differ in their config **rows**,
 not in their logic. A request is normalized, priced inside its unit's policy,
