@@ -1032,7 +1032,7 @@ row, not a variable in a running process.
 
 ## Secrets
 
-The three Slack destinations are referenced as environment variables, never
+The four Slack destinations are referenced as environment variables, never
 written into the workflow. An export of this workflow leaks nothing.
 
 | Variable | Channel |
@@ -1044,6 +1044,13 @@ written into the workflow. An export of this workflow leaks nothing.
 
 They are injected into the container from the secret store at runtime. Rotating a
 channel is a secret change and a restart, not a workflow edit.
+
+**Demo vs enterprise (design note).** This pilot injects the Slack webhook URLs
+from an external secret store as environment variables, a pilot-scoped choice
+rather than the enterprise pattern. The native path is n8n **External Secrets**
+(`$secrets.*` from Vault, Infisical, or AWS Secrets Manager), an Enterprise feature
+that would keep the reference inside n8n while the secret manager stays the source
+of truth. Either way the secret never enters the workflow export.
 
 ## What is deliberately not built (roadmap)
 
