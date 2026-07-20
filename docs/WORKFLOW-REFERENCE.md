@@ -96,7 +96,7 @@ Seeded pilot rows:
 | `active` | in service |
 
 The thin registry of valid business units and their names. Policy does **not**
-live here; it lives in `doa_rules`. Pilot rows: BU-01 Rheinfeld Plant, BU-02
+live here; it lives in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). Pilot rows: BU-01 Rheinfeld Plant, BU-02
 Ostwerk Assembly, BU-03 Nordhafen Logistics.
 
 ### `vendor_catalog`, the approved supplier list
@@ -181,8 +181,8 @@ Justification: PPE restock, Nordhafen line
 
 | Label (canonical) | Required | Schema field | Allowed values | Notes |
 |---|---|---|---|---|
-| Business Unit | yes | `business_unit` | BU-01, BU-02, BU-03 | must have `doa_rules` rows or it default-denies |
-| SKU | yes | `sku` | any `vendor_catalog` SKU | unknown SKU routes to sourcing |
+| Business Unit | yes | `business_unit` | BU-01, BU-02, BU-03 | must have [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows or it default-denies |
+| SKU | yes | `sku` | any [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) SKU | unknown SKU routes to sourcing |
 | Quantity | yes | `quantity` | positive number | `two boxes` or `0` bounces, never defaults |
 | Item Description | no | `item_description` | free text | display only |
 | Category | no (defaults MRO) | `category` | MRO | pilot scope |
@@ -209,7 +209,7 @@ Nodes in execution order, grouped by zone.
 
 Front door 1. The company-wide web form that raises a requisition. Fields map one-to-one to the normalized schema.
 
-**What to change:** Add a business unit or category by adding a **dropdown option** here, and add the matching rows to `doa_rules` (see the cookbook). The form is the only place the BU list is hard-typed; everything downstream reads the value, not a list.
+**What to change:** Add a business unit or category by adding a **dropdown option** here, and add the matching rows to [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) (see the cookbook). The form is the only place the BU list is hard-typed; everything downstream reads the value, not a list.
 
 ```json
 {
@@ -355,13 +355,13 @@ return [{ json: {
 
 ### 7. DoA Rule Lookup  `dataTable`
 
-POLICY, step 1. Reads every `doa_rules` row for this request's business unit and category. `doa_rules` is the policy master: thresholds, approval mode, approvers, cost center, lead-time tolerance, escalation window, and the auto-approve floor all live in its rows.
+POLICY, step 1. Reads every [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) row for this request's business unit and category. `doa_rules` is the policy master: thresholds, approval mode, approvers, cost center, lead-time tolerance, escalation window, and the auto-approve floor all live in its rows.
 
 **What to change:** This is a table read. To change any routing behaviour, edit `doa_rules` (cookbook below), never this node. The node only supplies the filter.
 
 ### 8. Load BU Policy  `code`
 
-POLICY, step 2. Collapses the business unit's several `doa_rules` rows into **one** item carrying the request plus its policy, and extracts `max_lead_time_days`. This exists to stop a fan-out: a Data Table read runs once per input item, so letting three band rows flow into the catalog lookup returned three duplicate copies of every vendor.
+POLICY, step 2. Collapses the business unit's several [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows into **one** item carrying the request plus its policy, and extracts `max_lead_time_days`. This exists to stop a fan-out: a Data Table read runs once per input item, so letting three band rows flow into the catalog lookup returned three duplicate copies of every vendor.
 
 **What to change:** Nothing. If a BU's bands ever disagree on lead-time tolerance, it takes the strictest, which is the safe default.
 
@@ -388,7 +388,7 @@ return [{ json: { ...req,
 
 ### 9. Vendor Catalog Lookup  `dataTable`
 
-PRICE, step 1. Reads every `vendor_catalog` row for the requested SKU and category, one row per vendor that lists the item.
+PRICE, step 1. Reads every [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) row for the requested SKU and category, one row per vendor that lists the item.
 
 **What to change:** A table read. Add or reprice a vendor line in `vendor_catalog`, not here.
 
@@ -528,7 +528,7 @@ Posts the `#requests` message. A parallel branch (a side effect), never inline i
 
 ### 15. Threshold Eval + Self-Check  `code`
 
-ROUTE. Deterministic evaluation against the `doa_rules` bands, plus a self-check that grades its own output. Default-denies on any gap: no rule row, a lead-time breach, an amount outside every band, or overlapping bands. A missing config row reaches a human, it never auto-approves.
+ROUTE. Deterministic evaluation against the [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) bands, plus a self-check that grades its own output. Default-denies on any gap: no rule row, a lead-time breach, an amount outside every band, or overlapping bands. A missing config row reaches a human, it never auto-approves.
 
 **What to change:** Behaviour is entirely `doa_rules` data. To move a threshold, change an approver, or switch a band to dual approval, edit the table. The self-check (exactly one band must match) is a guardrail; leave it in place.
 
@@ -606,7 +606,7 @@ Switch on the computed route. `auto_approve` goes to the auto-approved state; `s
 
 Terminal state for a request under the BU's auto-approve floor. Records `APPROVED` and routes straight to the outcome post, no human.
 
-**What to change:** The floor is `auto_approve_under` in `doa_rules`. Set it to 0 to disable auto-approval for a band.
+**What to change:** The floor is `auto_approve_under` in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). Set it to 0 to disable auto-approval for a band.
 
 
 ---
@@ -692,13 +692,13 @@ Posts the approval card to the reviewer channel and hands off to the Wait node.
 
 Pauses the execution until a decision link is clicked (webhook resume) or the timeout elapses. The paused execution is the state; no external store needed.
 
-**What to change:** The timeout is driven by `escalation_hours` from `doa_rules`. A resume with no decision is the escalation signal.
+**What to change:** The timeout is driven by `escalation_hours` from [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). A resume with no decision is the escalation signal.
 
 ### 21. Apply Decision  `code`
 
 Resolves the outcome from the resumed webhook query: approve, reject, or (on timeout, no decision) escalate to the configured fallback approver. A dual-approval approve records gate 1 of 2.
 
-**What to change:** Nothing. The fallback approver is `approver_fallback` in `doa_rules`, so escalation targets are config, not code.
+**What to change:** Nothing. The fallback approver is `approver_fallback` in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), so escalation targets are config, not code.
 
 ```js
 // Resume from Slack button, email link, or Wait timeout. Timeout = no decision = escalate.
@@ -854,7 +854,7 @@ return [{ json: {
 
 ### 25. Write Event Row  `dataTable`
 
-Appends the row to `pr_events`. This table is the measurement instrument the whole 90-day value story reads from, and the input to rule-drift detection.
+Appends the row to [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log). This table is the measurement instrument the whole 90-day value story reads from, and the input to rule-drift detection.
 
 **What to change:** Point at your `pr_events` table id. In production this is also where you would branch to a database or warehouse for real reporting.
 
@@ -867,14 +867,14 @@ Common changes, and the one place each is made. None of these touch a code node.
 
 | You want to | Change | Where |
 |---|---|---|
-| Add business unit BU-04 | add a dropdown option, add `doa_rules` rows (one per band), add a `business_units` row | form + 2 tables |
+| Add business unit BU-04 | add a dropdown option, add [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows (one per band), add a [`business_units`](https://your-runbook.example/#business_units-the-bu-registry) row | form + 2 tables |
 | Move an approval threshold | edit `threshold_min` / `threshold_max` on the band row | `doa_rules` |
 | Change who approves | edit `approver_primary` / `approver_fallback` | `doa_rules` |
 | Require two approvers on a band | set `approval_mode` = `dual` | `doa_rules` |
 | Let small spend auto-approve | raise `auto_approve_under` (0 disables) | `doa_rules` |
 | Tighten or relax delivery speed | edit `max_lead_time_days` | `doa_rules` |
 | Change the escalation clock | edit `escalation_hours` | `doa_rules` |
-| Add or reprice a vendor | add / edit the SKU-vendor row | `vendor_catalog` |
+| Add or reprice a vendor | add / edit the SKU-vendor row | [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) |
 | Add a new item | add `vendor_catalog` rows, one per vendor | `vendor_catalog` |
 | Move a Slack channel | rotate the `*_SLACK_WEBHOOK` secret | secret store |
 
@@ -949,7 +949,7 @@ outcome; a red run prints a per-field diff, and you decide whether the case or t
 logic is wrong.
 
 **Refresh the config snapshot.** `golden_config.json` is a point-in-time copy of
-`doa_rules`, `vendor_catalog`, and `business_units`. When those tables change,
+[`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list), and [`business_units`](https://your-runbook.example/#business_units-the-bu-registry). When those tables change,
 re-dump them into it, regenerate the expected values from the current logic, and
 **review the diff by hand** before committing:
 
@@ -1013,7 +1013,7 @@ artifact that keeps this true after a config change, so run it after every rule 
 
 ## Troubleshooting
 
-**Everything from one business unit is denying.** It has no rows in `doa_rules`, or
+**Everything from one business unit is denying.** It has no rows in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), or
 its bands overlap. Check `route_reason` on the event row.
 
 **A request took an unexpected vendor.** Check `max_lead_time_days` for that unit:
@@ -1026,7 +1026,7 @@ actioned. Expected behaviour, not a fault.
 **Nothing arrived in Slack.** The webhook URLs come from the container env; check
 they are present before suspecting the workflow.
 
-**It is 2am and it is broken.** Find the `request_id` in `pr_events`, read the last
+**It is 2am and it is broken.** Find the `request_id` in [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log), read the last
 transition, and the failure is in the next step. Nothing is lost, because state is a
 row, not a variable in a running process.
 
@@ -1057,4 +1057,4 @@ channel is a secret change and a restart, not a workflow edit.
   Slack button cannot carry an Access cookie. A first-class Slack app is the
   hardening step.
 - **Dedup enforcement.** `request_id` is deterministic and ready; a single
-  `pr_events` lookup before routing closes it.
+  [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log) lookup before routing closes it.

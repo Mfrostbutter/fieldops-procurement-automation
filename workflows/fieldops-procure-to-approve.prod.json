@@ -750,7 +750,7 @@
     },
     {
       "parameters": {
-        "content": "## [1. INTAKE](https://your-runbook.example/#zone-intake)\n**Multiple front doors, one hallway.**\n\nIN: a form submission or an email.\nOUT: one normalized request object with a request_id.\nREADS: business_units (for the dropdown).\n\n**Form** is the reliable structured path and feeds the baseline from day 1.\n**Email** meets people where they already are, parsed deterministically. Non-conforming mail bounces back with a form link; it never routes on a guess.\n\nON FAILURE: an invalid quantity THROWS rather than defaulting to 1. Inventing a value is a silent failure that reaches a purchase order.",
+        "content": "## [1. INTAKE](https://your-runbook.example/#zone-intake)\n**Multiple front doors, one hallway.**\n\nIN: a form submission or an email.\nOUT: one normalized request object with a request_id.\nREADS: [business_units](https://your-runbook.example/#business_units-the-bu-registry) (for the dropdown).\n\n**Form** is the reliable structured path and feeds the baseline from day 1.\n**Email** meets people where they already are, parsed deterministically. Non-conforming mail bounces back with a form link; it never routes on a guess.\n\nON FAILURE: an invalid quantity THROWS rather than defaulting to 1. Inventing a value is a silent failure that reaches a purchase order.",
         "height": 1056,
         "width": 1216,
         "color": 4
@@ -766,7 +766,7 @@
     },
     {
       "parameters": {
-        "content": "## [2. POLICY](https://your-runbook.example/#zone-policy)\n**Load the BU's rules before pricing.**\n\nIN: normalized request.\nOUT: request + that BU's policy, as ONE item.\nREADS: doa_rules on business_unit + category.\n\nPricing has to happen INSIDE the policy, because the lead-time tolerance decides which vendors are even eligible.\n\nON FAILURE: no rule rows is legitimate (a BU can exist with no policy yet). It becomes an explicit default-deny in ROUTE, never a pass.",
+        "content": "## [2. POLICY](https://your-runbook.example/#zone-policy)\n**Load the BU's rules before pricing.**\n\nIN: normalized request.\nOUT: request + that BU's policy, as ONE item.\nREADS: [doa_rules](https://your-runbook.example/#doa_rules-the-policy-master) on business_unit + category.\n\nPricing has to happen INSIDE the policy, because the lead-time tolerance decides which vendors are even eligible.\n\nON FAILURE: no rule rows is legitimate (a BU can exist with no policy yet). It becomes an explicit default-deny in ROUTE, never a pass.",
         "height": 1056,
         "width": 624,
         "color": 3
@@ -782,7 +782,7 @@
     },
     {
       "parameters": {
-        "content": "## [3. PRICE](https://your-runbook.example/#zone-price)\n**The amount is DERIVED, never asserted.**\n\nIN: request + policy.\nOUT: best source, derived amount, savings vs incumbent, flags.\nREADS: vendor_catalog on sku + category (SKU-level ASL).\n\nRanks approved vendors by unit price, then applies the BU's `max_lead_time_days`. The cheapest source that can actually arrive in time wins, and the premium paid for speed is reported rather than hidden.\n\nON FAILURE:\n• no approved source → sourcing event, never an auto-approve\n• nothing inside tolerance → fastest available, flagged, forced to a human",
+        "content": "## [3. PRICE](https://your-runbook.example/#zone-price)\n**The amount is DERIVED, never asserted.**\n\nIN: request + policy.\nOUT: best source, derived amount, savings vs incumbent, flags.\nREADS: [vendor_catalog](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) on sku + category (SKU-level ASL).\n\nRanks approved vendors by unit price, then applies the BU's `max_lead_time_days`. The cheapest source that can actually arrive in time wins, and the premium paid for speed is reported rather than hidden.\n\nON FAILURE:\n• no approved source → sourcing event, never an auto-approve\n• nothing inside tolerance → fastest available, flagged, forced to a human",
         "height": 1056,
         "width": 832,
         "color": 6
@@ -830,7 +830,7 @@
     },
     {
       "parameters": {
-        "content": "## [6. RECORD + CLOSE](https://your-runbook.example/#zone-record)\n**The instrument is a table, not a dashboard.**\n\nIN: any terminal state.\nOUT: one row per transition, plus an outcome post.\nWRITES: pr_events.  POSTS: #orders.\n\nCycle time, stall rate, off-contract rate and rule drift are all queries against this table. A dashboard is roadmap.\n\nEvery terminal state posts, including rejections and escalations. A good-news-only channel is not an audit trail.\n\n**No PO number is invented here.** The ERP owns that sequence.",
+        "content": "## [6. RECORD + CLOSE](https://your-runbook.example/#zone-record)\n**The instrument is a table, not a dashboard.**\n\nIN: any terminal state.\nOUT: one row per transition, plus an outcome post.\nWRITES: [pr_events](https://your-runbook.example/#pr_events-the-audit-log).  POSTS: #orders.\n\nCycle time, stall rate, off-contract rate and rule drift are all queries against this table. A dashboard is roadmap.\n\nEvery terminal state posts, including rejections and escalations. A good-news-only channel is not an audit trail.\n\n**No PO number is invented here.** The ERP owns that sequence.",
         "height": 912,
         "width": 880,
         "color": 5
@@ -846,7 +846,7 @@
     },
     {
       "parameters": {
-        "content": "## [RUNBOOK — onboard a business unit](https://your-runbook.example/#onboard-a-business-unit)\n*You should not need to open a single node to do this.*\n\n**1.** Add the BU to the **business_units** table (`code`, `name`, `active`).\n\n**2.** Add its rows to **doa_rules**, one per threshold band:\n`business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`\n\n**3.** Run the golden set. If it passes, that BU is live.\n\nBands must not overlap: the evaluator asserts exactly one band claims an amount and default-denies if more than one does.\n\nA BU with no rows is safe. Every request from it default-denies to a human until somebody writes the policy. That is deliberate.",
+        "content": "## [RUNBOOK — onboard a business unit](https://your-runbook.example/#onboard-a-business-unit)\n*You should not need to open a single node to do this.*\n\n**1.** Add the BU to the **[business_units](https://your-runbook.example/#business_units-the-bu-registry)** table (`code`, `name`, `active`).\n\n**2.** Add its rows to **[doa_rules](https://your-runbook.example/#doa_rules-the-policy-master)**, one per threshold band:\n`business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`\n\n**3.** Run the golden set. If it passes, that BU is live.\n\nBands must not overlap: the evaluator asserts exactly one band claims an amount and default-denies if more than one does.\n\nA BU with no rows is safe. Every request from it default-denies to a human until somebody writes the policy. That is deliberate.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -862,7 +862,7 @@
     },
     {
       "parameters": {
-        "content": "## [CONFIGURATION](https://your-runbook.example/#config-tables-change-these-not-the-canvas)\n*Four tables. Everything that changes weekly is in one of them, and none of it is on this canvas.*\n\n**doa_rules** — thresholds, approvers, escalation windows, approval mode, lead-time tolerance. The routing engine.\n\n**vendor_catalog** — the hosted vendor catalogs. SKU-level ASL: which vendors are approved for which item, at what price and lead time.\n\n**business_units** — the BU master. Separate from the rules on purpose: a BU can exist before anyone has written its policy.\n\n**pr_events** — every state transition. Read-only in practice; this is the measurement instrument.\n\nChanging an approver or a threshold is a ROW EDIT, not a deploy. Nobody has to open n8n.",
+        "content": "## [CONFIGURATION](https://your-runbook.example/#config-tables-change-these-not-the-canvas)\n*Four tables. Everything that changes weekly is in one of them, and none of it is on this canvas.*\n\n**[doa_rules](https://your-runbook.example/#doa_rules-the-policy-master)** — thresholds, approvers, escalation windows, approval mode, lead-time tolerance. The routing engine.\n\n**[vendor_catalog](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list)** — the hosted vendor catalogs. SKU-level ASL: which vendors are approved for which item, at what price and lead time.\n\n**[business_units](https://your-runbook.example/#business_units-the-bu-registry)** — the BU master. Separate from the rules on purpose: a BU can exist before anyone has written its policy.\n\n**[pr_events](https://your-runbook.example/#pr_events-the-audit-log)** — every state transition. Read-only in practice; this is the measurement instrument.\n\nChanging an approver or a threshold is a ROW EDIT, not a deploy. Nobody has to open n8n.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -878,7 +878,7 @@
     },
     {
       "parameters": {
-        "content": "## [TROUBLESHOOTING](https://your-runbook.example/#troubleshooting)\n\n**Everything from one BU is denying.** It has no rows in doa_rules, or its bands overlap. Check `route_reason` on the event row.\n\n**A request took an unexpected vendor.** Check `max_lead_time_days` for that BU: the cheapest source may not meet its tolerance. `lead_time_premium` shows what the tolerance cost.\n\n**An approval link says invalid token.** Resume URLs are single-use and die once actioned. Expected behaviour, not a fault.\n\n**Nothing arrived in Slack.** The webhook URLs come from the container env. Check they are present before suspecting the workflow.\n\n**It is 2am and it is broken.** Find the request_id in pr_events, read the last transition, and the failure is in the next step. Nothing is lost, because state is a row and not a variable in a running process.",
+        "content": "## [TROUBLESHOOTING](https://your-runbook.example/#troubleshooting)\n\n**Everything from one BU is denying.** It has no rows in [doa_rules](https://your-runbook.example/#doa_rules-the-policy-master), or its bands overlap. Check `route_reason` on the event row.\n\n**A request took an unexpected vendor.** Check `max_lead_time_days` for that BU: the cheapest source may not meet its tolerance. `lead_time_premium` shows what the tolerance cost.\n\n**An approval link says invalid token.** Resume URLs are single-use and die once actioned. Expected behaviour, not a fault.\n\n**Nothing arrived in Slack.** The webhook URLs come from the container env. Check they are present before suspecting the workflow.\n\n**It is 2am and it is broken.** Find the request_id in [pr_events](https://your-runbook.example/#pr_events-the-audit-log), read the last transition, and the failure is in the next step. Nothing is lost, because state is a row and not a variable in a running process.",
         "height": 624,
         "width": 912,
         "color": 7
