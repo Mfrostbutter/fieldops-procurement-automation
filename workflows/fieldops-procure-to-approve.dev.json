@@ -936,7 +936,7 @@
     },
     {
       "parameters": {
-        "content": "## TESTING (DEV ONLY)\n*The copy you edit and prove before promoting to prod.*\n\n**What DEV is.** A byte-for-byte copy of production with inert test hooks. In normal use it behaves exactly like prod; the hooks only wake when a request carries `_mode: test`.\n\n**Test mode.** A test request short-circuits every side effect: no Slack post, no approval wait, no event-row write. It runs the real decision nodes and returns the decision, nothing else. A test can never page a person or write a phantom PO.\n\n**How it runs.** The *Regression Test Runner* picks a business unit, feeds the golden set through this workflow's actual logic, and asserts every request still routes to the right place for the right amount. Findings post to #regression.\n\n**Promote when green.** Edit here, run the runner, and only when it is green do you copy DEV to prod. Green is the gate, not a formality.",
+        "content": "## [TESTING (DEV ONLY)](https://your-runbook.example/#evaluations-the-golden-set-regression-tests)\n*The copy you edit and prove before promoting to prod.*\n\n**What DEV is.** A byte-for-byte copy of production with inert test hooks. In normal use it behaves exactly like prod; the hooks only wake when a request carries `_mode: test`.\n\n**Test mode.** A test request short-circuits every side effect: no Slack post, no approval wait, no event-row write. It runs the real decision nodes and returns the decision, nothing else. A test can never page a person or write a phantom PO.\n\n**How it runs.** The *Regression Test Runner* picks a business unit, feeds the golden set through this workflow's actual logic, and asserts every request still routes to the right place for the right amount. Findings post to #regression.\n\n**Promote when green.** Edit here, run the runner, and only when it is green do you copy DEV to prod. Green is the gate, not a formality.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -952,7 +952,7 @@
     },
     {
       "parameters": {
-        "content": "## RUNBOOK — onboard a business unit\n*You should not need to open a single node to do this.*\n\n**1.** Add the BU to the **business_units** table (`code`, `name`, `active`).\n\n**2.** Add its rows to **doa_rules**, one per threshold band:\n`business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`\n\n**3.** Run the golden set. If it passes, that BU is live.\n\nBands must not overlap: the evaluator asserts exactly one band claims an amount and default-denies if more than one does.\n\nA BU with no rows is safe. Every request from it default-denies to a human until somebody writes the policy. That is deliberate.",
+        "content": "## [RUNBOOK — onboard a business unit](https://your-runbook.example/#onboard-a-business-unit)\n*You should not need to open a single node to do this.*\n\n**1.** Add the BU to the **business_units** table (`code`, `name`, `active`).\n\n**2.** Add its rows to **doa_rules**, one per threshold band:\n`business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`\n\n**3.** Run the golden set. If it passes, that BU is live.\n\nBands must not overlap: the evaluator asserts exactly one band claims an amount and default-denies if more than one does.\n\nA BU with no rows is safe. Every request from it default-denies to a human until somebody writes the policy. That is deliberate.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -968,7 +968,7 @@
     },
     {
       "parameters": {
-        "content": "## CONFIGURATION\n*Four tables. Everything that changes weekly is in one of them, and none of it is on this canvas.*\n\n**doa_rules** — thresholds, approvers, escalation windows, approval mode, lead-time tolerance. The routing engine.\n\n**vendor_catalog** — the hosted vendor catalogs. SKU-level ASL: which vendors are approved for which item, at what price and lead time.\n\n**business_units** — the BU master. Separate from the rules on purpose: a BU can exist before anyone has written its policy.\n\n**pr_events** — every state transition. Read-only in practice; this is the measurement instrument.\n\nChanging an approver or a threshold is a ROW EDIT, not a deploy. Nobody has to open n8n.",
+        "content": "## [CONFIGURATION](https://your-runbook.example/#config-tables-change-these-not-the-canvas)\n*Four tables. Everything that changes weekly is in one of them, and none of it is on this canvas.*\n\n**doa_rules** — thresholds, approvers, escalation windows, approval mode, lead-time tolerance. The routing engine.\n\n**vendor_catalog** — the hosted vendor catalogs. SKU-level ASL: which vendors are approved for which item, at what price and lead time.\n\n**business_units** — the BU master. Separate from the rules on purpose: a BU can exist before anyone has written its policy.\n\n**pr_events** — every state transition. Read-only in practice; this is the measurement instrument.\n\nChanging an approver or a threshold is a ROW EDIT, not a deploy. Nobody has to open n8n.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -984,7 +984,7 @@
     },
     {
       "parameters": {
-        "content": "## TROUBLESHOOTING\n\n**Everything from one BU is denying.** It has no rows in doa_rules, or its bands overlap. Check `route_reason` on the event row.\n\n**A request took an unexpected vendor.** Check `max_lead_time_days` for that BU: the cheapest source may not meet its tolerance. `lead_time_premium` shows what the tolerance cost.\n\n**An approval link says invalid token.** Resume URLs are single-use and die once actioned. Expected behaviour, not a fault.\n\n**Nothing arrived in Slack.** The webhook URLs come from the container env. Check they are present before suspecting the workflow.\n\n**It is 2am and it is broken.** Find the request_id in pr_events, read the last transition, and the failure is in the next step. Nothing is lost, because state is a row and not a variable in a running process.",
+        "content": "## [TROUBLESHOOTING](https://your-runbook.example/#troubleshooting)\n\n**Everything from one BU is denying.** It has no rows in doa_rules, or its bands overlap. Check `route_reason` on the event row.\n\n**A request took an unexpected vendor.** Check `max_lead_time_days` for that BU: the cheapest source may not meet its tolerance. `lead_time_premium` shows what the tolerance cost.\n\n**An approval link says invalid token.** Resume URLs are single-use and die once actioned. Expected behaviour, not a fault.\n\n**Nothing arrived in Slack.** The webhook URLs come from the container env. Check they are present before suspecting the workflow.\n\n**It is 2am and it is broken.** Find the request_id in pr_events, read the last transition, and the failure is in the next step. Nothing is lost, because state is a row and not a variable in a running process.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -1000,7 +1000,7 @@
     },
     {
       "parameters": {
-        "content": "## FAILURE MODES\n*The failure mode this workflow is built to refuse.*\n\nA run can be green and still be wrong. Four places that is defended:\n\n**1.** A missing rule row default-denies instead of passing.\n**2.** A low-confidence email parse bounces instead of routing.\n**3.** The threshold evaluator grades its own output (`self_check`).\n**4.** An unmeetable lead time is flagged, not quietly ignored.\n\n**The weekly query that matters:** requests that entered and never terminated. n8n will show you green executions. Green is not the same as done.\n\nThe golden set is the artifact that keeps this true after a config change. Run it after every rule edit.",
+        "content": "## [FAILURE MODES](https://your-runbook.example/#failure-modes)\n*The failure mode this workflow is built to refuse.*\n\nA run can be green and still be wrong. Four places that is defended:\n\n**1.** A missing rule row default-denies instead of passing.\n**2.** A low-confidence email parse bounces instead of routing.\n**3.** The threshold evaluator grades its own output (`self_check`).\n**4.** An unmeetable lead time is flagged, not quietly ignored.\n\n**The weekly query that matters:** requests that entered and never terminated. n8n will show you green executions. Green is not the same as done.\n\nThe golden set is the artifact that keeps this true after a config change. Run it after every rule edit.",
         "height": 624,
         "width": 912,
         "color": 7
@@ -1016,7 +1016,7 @@
     },
     {
       "parameters": {
-        "content": "# Documentation, Configuration & Resouces\n",
+        "content": "# [Documentation, Configuration & Resources](https://your-runbook.example/)\n",
         "height": 3328,
         "width": 1040
       },

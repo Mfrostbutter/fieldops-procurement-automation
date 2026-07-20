@@ -878,6 +878,20 @@ Common changes, and the one place each is made. None of these touch a code node.
 | Add a new item | add `vendor_catalog` rows, one per vendor | `vendor_catalog` |
 | Move a Slack channel | rotate the `*_SLACK_WEBHOOK` secret | secret store |
 
+## Onboard a business unit
+
+You should not need to open a single node to do this.
+
+1. Add the business unit to the **business_units** table (`code`, `name`, `active`).
+2. Add its rows to **doa_rules**, one per threshold band:
+   `business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`
+3. Run the golden set. If it passes, that unit is live.
+
+Bands must not overlap: the evaluator asserts exactly one band claims an amount and
+default-denies if more than one does. A unit with no rows is safe; every request
+from it default-denies to a human until somebody writes its policy. That is
+deliberate.
+
 ## Evaluations: the golden set (regression tests)
 
 The workflow has no LLM, so its correctness is a **test suite**, not a model
@@ -982,6 +996,39 @@ The DEV workflow carries an **inert test hook**: when a case arrives with
 `_mode` set to `test`, it returns the decision and short-circuits before Slack,
 the approval wait, and the event write, so a test run has no side effects and
 leaves nothing to clean up. In normal use the hook never fires.
+
+## Failure modes
+
+The failure mode this workflow is built to refuse: a run can be green and still be
+wrong. Four places that is defended:
+
+1. A missing rule row default-denies instead of passing.
+2. A low-confidence email parse bounces instead of routing.
+3. The threshold evaluator grades its own output (`self_check`).
+4. An unmeetable lead time is flagged, not quietly ignored.
+
+The weekly query that matters: requests that entered and never terminated. n8n will
+show you green executions; green is not the same as done. The golden set is the
+artifact that keeps this true after a config change, so run it after every rule edit.
+
+## Troubleshooting
+
+**Everything from one business unit is denying.** It has no rows in `doa_rules`, or
+its bands overlap. Check `route_reason` on the event row.
+
+**A request took an unexpected vendor.** Check `max_lead_time_days` for that unit:
+the cheapest source may not meet its tolerance. `lead_time_premium` shows what the
+tolerance cost.
+
+**An approval link says invalid token.** Resume URLs are single-use and die once
+actioned. Expected behaviour, not a fault.
+
+**Nothing arrived in Slack.** The webhook URLs come from the container env; check
+they are present before suspecting the workflow.
+
+**It is 2am and it is broken.** Find the `request_id` in `pr_events`, read the last
+transition, and the failure is in the next step. Nothing is lost, because state is a
+row, not a variable in a running process.
 
 ## Secrets
 
