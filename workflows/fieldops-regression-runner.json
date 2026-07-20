@@ -1,0 +1,313 @@
+{
+  "name": "FieldOps - Regression Test Runner",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "fde-regression-test",
+        "formTitle": "Procurement Regression Test",
+        "formDescription": "Pick a business unit and run the golden set against the DEV workflow. Green means every request still routes to the right place for the right amount.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "business_unit",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "ALL"
+                  },
+                  {
+                    "option": "BU-01"
+                  },
+                  {
+                    "option": "BU-02"
+                  },
+                  {
+                    "option": "BU-03"
+                  }
+                ]
+              },
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        560
+      ],
+      "id": "rt-form",
+      "name": "Run Regression Test",
+      "webhookId": "fde-regression-test"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CASES = [{\"name\": \"bu01-auto-approve-maverick\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1001\", \"item_description\": \"Bearing\", \"quantity\": 10, \"category\": \"MRO\", \"preferred_vendor\": \"VEND-A\"}, \"expect\": {\"route\": \"auto_approve\", \"route_reason\": \"matched_band\", \"state\": \"APPROVED\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 142, \"savings_vs_incumbent\": 43, \"maverick_flag\": true}}, {\"name\": \"bu01-single-small-band\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1006\", \"quantity\": 30, \"category\": \"MRO\"}, \"expect\": {\"route\": \"single_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 1830, \"savings_vs_incumbent\": 195, \"maverick_flag\": false}}, {\"name\": \"bu01-single-mid-band\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1004\", \"quantity\": 100, \"category\": \"MRO\"}, \"expect\": {\"route\": \"single_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-C\", \"derived_amount\": 10450, \"savings_vs_incumbent\": 0, \"maverick_flag\": false}}, {\"name\": \"bu01-dual-approver\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1011\", \"quantity\": 30, \"category\": \"MRO\"}, \"expect\": {\"route\": \"dual_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 35550, \"savings_vs_incumbent\": 1650, \"maverick_flag\": false}}, {\"name\": \"bu01-outside-all-bands\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1011\", \"quantity\": 100, \"category\": \"MRO\"}, \"expect\": {\"route\": \"default_deny\", \"route_reason\": \"amount_outside_all_bands\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 118500, \"savings_vs_incumbent\": 5500, \"maverick_flag\": false}}, {\"name\": \"bu01-leadtime-cheapest\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1011\", \"quantity\": 1, \"category\": \"MRO\"}, \"expect\": {\"route\": \"single_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 1185, \"savings_vs_incumbent\": 55, \"maverick_flag\": false}}, {\"name\": \"bu03-leadtime-premium\", \"input\": {\"business_unit\": \"BU-03\", \"sku\": \"MRO-1011\", \"quantity\": 1, \"category\": \"MRO\"}, \"expect\": {\"route\": \"single_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-C\", \"derived_amount\": 1310, \"savings_vs_incumbent\": -70, \"maverick_flag\": false}}, {\"name\": \"bu01-leadtime-breach\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1014\", \"quantity\": 1, \"category\": \"MRO\"}, \"expect\": {\"route\": \"default_deny\", \"route_reason\": \"lead_time_breach\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-A\", \"derived_amount\": 3180, \"savings_vs_incumbent\": 0, \"maverick_flag\": false}}, {\"name\": \"bu03-leadtime-breach\", \"input\": {\"business_unit\": \"BU-03\", \"sku\": \"MRO-1014\", \"quantity\": 1, \"category\": \"MRO\"}, \"expect\": {\"route\": \"default_deny\", \"route_reason\": \"lead_time_breach\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-A\", \"derived_amount\": 3180, \"savings_vs_incumbent\": 0, \"maverick_flag\": false}}, {\"name\": \"needs-sourcing-unknown-sku\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-9999\", \"quantity\": 5, \"category\": \"MRO\"}, \"expect\": {\"state\": \"NEEDS_SOURCING\", \"catalog_match\": false, \"derived_amount\": null}}, {\"name\": \"bu02-no-rule-row\", \"input\": {\"business_unit\": \"BU-02\", \"sku\": \"MRO-1002\", \"quantity\": 10, \"category\": \"MRO\"}, \"expect\": {\"route\": \"default_deny\", \"route_reason\": \"no_rule_row_for_bu_category\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-C\", \"derived_amount\": 199.5, \"savings_vs_incumbent\": 40.5, \"maverick_flag\": false}}, {\"name\": \"bu01-maverick-preferred-c\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1001\", \"quantity\": 10, \"category\": \"MRO\", \"preferred_vendor\": \"VEND-C\"}, \"expect\": {\"route\": \"auto_approve\", \"route_reason\": \"matched_band\", \"state\": \"APPROVED\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 142, \"savings_vs_incumbent\": 43, \"maverick_flag\": true}}, {\"name\": \"bu03-auto-approve\", \"input\": {\"business_unit\": \"BU-03\", \"sku\": \"MRO-1007\", \"quantity\": 10, \"category\": \"MRO\"}, \"expect\": {\"route\": \"auto_approve\", \"route_reason\": \"matched_band\", \"state\": \"APPROVED\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-B\", \"derived_amount\": 114, \"savings_vs_incumbent\": 14, \"maverick_flag\": false}}, {\"name\": \"bu01-spot-best-source\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1008\", \"quantity\": 20, \"category\": \"MRO\"}, \"expect\": {\"route\": \"single_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-C\", \"derived_amount\": 1198, \"savings_vs_incumbent\": 162, \"maverick_flag\": false}}, {\"name\": \"bu03-dual-approver\", \"input\": {\"business_unit\": \"BU-03\", \"sku\": \"MRO-1011\", \"quantity\": 30, \"category\": \"MRO\"}, \"expect\": {\"route\": \"dual_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-C\", \"derived_amount\": 39300, \"savings_vs_incumbent\": -2100, \"maverick_flag\": false}}, {\"name\": \"bu01-mid-large-single\", \"input\": {\"business_unit\": \"BU-01\", \"sku\": \"MRO-1004\", \"quantity\": 200, \"category\": \"MRO\"}, \"expect\": {\"route\": \"single_approver\", \"route_reason\": \"matched_band\", \"state\": \"AWAITING_APPROVAL\", \"self_check\": \"pass\", \"catalog_match\": true, \"best_vendor_id\": \"VEND-C\", \"derived_amount\": 20900, \"savings_vs_incumbent\": 0, \"maverick_flag\": false}}];\nconst sel = String($json.business_unit != null ? $json.business_unit : ($json['field-0'] != null ? $json['field-0'] : 'ALL')).toUpperCase();\nconst chosen = sel === 'ALL' ? CASES : CASES.filter(c => c.input.business_unit === sel);\nif (chosen.length === 0) return [{ json: { _name: '(none)', _expect: {}, _empty: true, business_unit: sel } }];\nreturn chosen.map(c => ({ json: { ...c.input, _mode: 'test', _name: c.name, _expect: c.expect } }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        560
+      ],
+      "id": "rt-golden",
+      "name": "Golden Set"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Z2vI3OH3YHWAOAfy",
+          "mode": "id",
+          "cachedResultName": "FieldOps - Procure-to-Approve (DEV)"
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        560
+      ],
+      "id": "rt-exec",
+      "name": "Run DEV logic",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cases = $('Golden Set').all();\nconst outs = $input.all();\nconst results = [];\nfor (let i = 0; i < cases.length; i++) {\n  const cj = cases[i].json;\n  if (cj._empty) { results.push({ json: { name: 'no cases for ' + cj.business_unit, pass: true, skipped: true, diffs: [] } }); continue; }\n  const exp = cj._expect || {};\n  const got = (outs[i] && outs[i].json) || {};\n  const diffs = [];\n  for (const k of Object.keys(exp)) {\n    if (got[k] !== exp[k]) diffs.push(k + ': expected ' + JSON.stringify(exp[k]) + ', got ' + JSON.stringify(got[k]));\n  }\n  results.push({ json: { name: cj._name, pass: diffs.length === 0, diffs } });\n}\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        560
+      ],
+      "id": "rt-assert",
+      "name": "Assert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst real = rows.filter(r => !r.skipped);\nconst passed = real.filter(r => r.pass).length;\nconst failed = real.length - passed;\nconst lines = rows.map(r => (r.skipped ? '-     ' : (r.pass ? 'PASS  ' : 'FAIL  ')) + r.name +\n  (r.diffs && r.diffs.length ? '\\n        ' + r.diffs.join('\\n        ') : ''));\nconst head = failed ? (failed + ' FAILED, ' + passed + ' passed') : ('All ' + passed + ' passed');\nconst summary = head + ' (of ' + real.length + ')\\n\\n' + lines.join('\\n');\nlet sel = 'ALL';\ntry { const f = $('Run Regression Test').first().json; sel = String(f.business_unit != null ? f.business_unit : (f['field-0'] != null ? f['field-0'] : 'ALL')).toUpperCase(); } catch (e) {}\nconst icon = failed ? ':red_circle:' : ':large_green_circle:';\nconst slack_payload = { text: icon + ' Regression ' + head + ' (' + sel + ')', blocks: [\n  { type: 'header', text: { type: 'plain_text', text: 'Regression test: ' + sel } },\n  { type: 'section', text: { type: 'mrkdwn', text: icon + ' *' + head + '*  (of ' + real.length + ')' } },\n  { type: 'section', text: { type: 'mrkdwn', text: '```' + lines.join('\\n').slice(0, 2800) + '```' } },\n] };\nreturn [{ json: { passed, failed, total: real.length, all_pass: failed === 0, summary, slack_payload } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        560
+      ],
+      "id": "rt-summary",
+      "name": "Summary"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.REGRESSION_SLACK_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1536,
+        560
+      ],
+      "id": "rt-slack",
+      "name": "Post to #regression",
+      "onError": "continueRegularOutput",
+      "notes": "Webhook from container env (Infisical /n8n-demo REGRESSION_SLACK_WEBHOOK). Findings post to the regression channel every run. Side effect, so onError continues and the form completion still renders."
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Regression result",
+        "completionMessage": "={{ $('Summary').item.json.summary }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        560
+      ],
+      "id": "rt-complete",
+      "name": "Show Result",
+      "webhookId": "2b8aa7d9-53dc-4584-b207-959869d3bbf5"
+    },
+    {
+      "parameters": {
+        "content": "## Regression Test Runner\nTest a change before you promote it to production.\n\nEdit the **DEV** workflow, run this for a business unit (or ALL), and green means every request still routes to the right place for the right amount. Then promote DEV to prod.",
+        "height": 200,
+        "width": 2220,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        144
+      ],
+      "id": "st-title",
+      "name": "sticky-st-title"
+    },
+    {
+      "parameters": {
+        "content": "### 1 - Pick a business unit\n\nALL, or one BU so an owner checks only their own rules. Runs on submit; the result shows on the form completion page.",
+        "height": 480,
+        "width": 440,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        352
+      ],
+      "id": "st-form",
+      "name": "sticky-st-form"
+    },
+    {
+      "parameters": {
+        "content": "### 2 - The golden set\n\nKnown requests with known-correct outcomes, filtered to the chosen BU. Add or edit a case here. Regenerated from `golden/golden_cases.json`.",
+        "height": 480,
+        "width": 312,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        224,
+        352
+      ],
+      "id": "st-golden",
+      "name": "sticky-st-golden"
+    },
+    {
+      "parameters": {
+        "content": "### 3 - Run the real logic\n\nSends each case through the DEV workflow's actual decision nodes in **test mode**: no Slack, no approval wait, no event write. Not a copy, so it cannot drift from production.",
+        "height": 480,
+        "width": 328,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        544,
+        352
+      ],
+      "id": "st-dev",
+      "name": "sticky-st-dev"
+    },
+    {
+      "parameters": {
+        "content": "### 4 - Check + summarize\n\n**Assert** compares each returned decision to its expected outcome. **Summary** counts pass or fail and builds the report. Green means every request still routes to the right place for the right amount.",
+        "height": 480,
+        "width": 548,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        880,
+        352
+      ],
+      "id": "st-check",
+      "name": "sticky-st-check"
+    },
+    {
+      "parameters": {
+        "content": "### 5 - Findings out\n\n**Post to #regression** sends the pass/fail summary to Slack every run (a side effect, onError continue, so a Slack outage never blocks the page). **Show Result** renders the same summary on the form completion page.",
+        "height": 480,
+        "width": 560,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1436,
+        352
+      ],
+      "id": "st-out",
+      "name": "sticky-st-out"
+    }
+  ],
+  "connections": {
+    "Run Regression Test": {
+      "main": [
+        [
+          {
+            "node": "Golden Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Golden Set": {
+      "main": [
+        [
+          {
+            "node": "Run DEV logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run DEV logic": {
+      "main": [
+        [
+          {
+            "node": "Assert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assert": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary": {
+      "main": [
+        [
+          {
+            "node": "Post to #regression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to #regression": {
+      "main": [
+        [
+          {
+            "node": "Show Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}
