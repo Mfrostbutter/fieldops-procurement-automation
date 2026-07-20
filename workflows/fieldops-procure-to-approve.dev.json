@@ -253,7 +253,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Route on DoA bands; self-check grades its own output. Deterministic, no LLM.\nconst req = $input.first().json;\nconst amount = Number(req.derived_amount);\n\nconst rules = $('DoA Rule Lookup').all().map(i => i.json).filter(r => r && r.business_unit && r.category);\nconst base = { ...req, evaluated_at: new Date().toISOString() };\n\n// Default-deny: no rule row for this BU/category.\nif (rules.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'no_rule_row_for_bu_category', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Default-deny: no vendor within lead-time tolerance.\nif (req.lead_time_breach) {\n  const r0 = rules[0];\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'lead_time_breach', approver: r0.approver_primary || null,\n    approver_fallback: r0.approver_fallback, escalation_hours: Number(r0.escalation_hours),\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\nconst bands = rules.filter(r =>\n  amount >= Number(r.threshold_min) && amount < Number(r.threshold_max));\n\n// Default-deny: amount outside every band.\nif (bands.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'amount_outside_all_bands', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Self-check: exactly one band must match; overlapping bands are a config error.\nconst self_check = bands.length === 1 ? 'pass' : 'FAIL_overlapping_bands';\nif (self_check !== 'pass') {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'overlapping_rule_bands', matched_bands: bands.length,\n    approver: null, self_check, state: 'AWAITING_APPROVAL' }}];\n}\n\nconst band = bands[0];\nconst autoUnder = Number(band.auto_approve_under) || 0;\n\n// approval_mode is config, not code.\nlet route;\nif (autoUnder > 0 && amount < autoUnder) route = 'auto_approve';\nelse if (String(band.approval_mode).toLowerCase() === 'dual') route = 'dual_approver';\nelse route = 'single_approver';\n\nreturn [{ json: { ...base,\n  route, route_reason: 'matched_band',\n  band_min: Number(band.threshold_min), band_max: Number(band.threshold_max),\n  approval_mode: band.approval_mode,\n  approver: route === 'auto_approve' ? null : band.approver_primary,\n  approver_fallback: band.approver_fallback,\n  escalation_hours: Number(band.escalation_hours),\n  auto_approve_under: autoUnder,\n  self_check,\n  state: route === 'auto_approve' ? 'APPROVED' : 'AWAITING_APPROVAL',\n}}];"
+        "jsCode": "// Route on DoA bands; self-check grades its own output. Deterministic, no LLM.\nconst req = $input.first().json;\nconst amount = Number(req.derived_amount);\n\nconst rules = $('DoA Rule Lookup').all().map(i => i.json).filter(r => r && r.business_unit && r.category);\nconst base = { ...req, evaluated_at: new Date().toISOString() };\n\n// Default-deny: no rule row for this BU/category.\nif (rules.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'no_rule_row_for_bu_category', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Default-deny: no vendor within lead-time tolerance.\nif (req.lead_time_breach) {\n  const r0 = rules[0];\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'lead_time_breach', approver: r0.approver_primary || null,\n    approver_fallback: r0.approver_fallback, escalation_hours: Number(r0.escalation_hours),\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\nconst bands = rules.filter(r =>\n  amount >= Number(r.threshold_min) && amount < Number(r.threshold_max));\n\n// Default-deny: amount outside every band.\nif (bands.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'amount_outside_all_bands', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Self-check: exactly one band must match; overlapping bands are a config error.\nconst self_check = bands.length === 1 ? 'pass' : 'FAIL_overlapping_bands';\nif (self_check !== 'pass') {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'overlapping_rule_bands', matched_bands: bands.length,\n    approver: null, self_check, state: 'AWAITING_APPROVAL' }}];\n}\n\nconst band = bands[0];\nconst autoUnder = Number(band.auto_approve_under) || 0;\n\n// approval_mode is config, not code.\nlet route;\nif (autoUnder > 0 && amount < autoUnder) route = 'auto_approve';\nelse if (String(band.approval_mode).toLowerCase() === 'dual') route = 'dual_approver';\nelse route = 'single_approver';\n\nreturn [{ json: { ...base,\n  route, route_reason: 'matched_band',\n  band_min: Number(band.threshold_min), band_max: Number(band.threshold_max),\n  approval_mode: band.approval_mode,\n  approver: route === 'auto_approve' ? null : band.approver_primary,\n  approver_fallback: band.approver_fallback,\n  cost_owner: band.approver_primary,\n  escalation_hours: Number(band.escalation_hours),\n  auto_approve_under: autoUnder,\n  self_check,\n  state: route === 'auto_approve' ? 'APPROVED' : 'AWAITING_APPROVAL',\n}}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -405,7 +405,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// RECORD: one row per state transition (the audit + drift instrument).\nconst j = $input.first().json;\nreturn [{ json: {\n  request_id: j.request_id || 'UNKNOWN',\n  event: j.state || 'UNKNOWN',\n  detail: JSON.stringify({\n    route: j.route || null,\n    route_reason: j.route_reason || null,\n    self_check: j.self_check || null,\n    derived_amount: j.derived_amount ?? null,\n    currency: j.currency || 'EUR',\n    best_vendor: j.best_vendor_name || null,\n    savings_vs_incumbent: j.savings_vs_incumbent ?? null,\n    maverick_flag: j.maverick_flag ?? null,\n    catalog_match: j.catalog_match ?? null,\n    approver: j.approver || null,\n  }),\n  actor: j.requester_email || 'system',\n  ts: new Date().toISOString(),\n}}];"
+        "jsCode": "// RECORD: one row per request at its terminal state (audit + cycle-time instrument).\nconst j = $input.first().json;\nconst now = new Date().toISOString();\nconst submitted_at = j.created_at || null;\n// Human-gated paths carry decided_at; auto-decided/terminal states decide at record time.\nconst decided_at = j.decided_at || now;\nconst cycle_seconds = submitted_at\n  ? Math.max(0, Math.round((new Date(decided_at) - new Date(submitted_at)) / 1000))\n  : null;\nreturn [{ json: {\n  request_id: j.request_id || 'UNKNOWN',\n  event: j.state || 'UNKNOWN',\n  detail: JSON.stringify({\n    route: j.route || null,\n    route_reason: j.route_reason || null,\n    self_check: j.self_check || null,\n    derived_amount: j.derived_amount ?? null,\n    currency: j.currency || 'EUR',\n    best_vendor: j.best_vendor_name || null,\n    savings_vs_incumbent: j.savings_vs_incumbent ?? null,\n    maverick_flag: j.maverick_flag ?? null,\n    catalog_match: j.catalog_match ?? null,\n    approver: j.approver || null,\n  }),\n  actor: j.requester_email || 'system',\n  ts: now,\n  submitted_at,\n  decided_at,\n  cycle_seconds,\n}}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1043,6 +1043,121 @@
       "typeVersion": 1,
       "id": "27c2eada-c998-499b-87a7-ce892117b382",
       "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "options": {
+          "appendAttribution": false
+        },
+        "fromEmail": "procurement-bot@fieldops.example",
+        "toEmail": "={{ $('Normalize Request').item.json.requester_email }}",
+        "subject": "=Requisition received - {{ $('Normalize Request').item.json.request_id }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your procurement request <strong>{{ $('Normalize Request').item.json.request_id }}</strong> has been received and priced.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Quantity</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.quantity }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Business unit</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.business_unit }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Priced at</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr></table><p>You will get another note when it is approved, or if it needs a human decision.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        336,
+        2160
+      ],
+      "id": "428a8184-468a-426e-833f-2b3187b8b703",
+      "name": "Email Notification Request",
+      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "appendAttribution": false
+        },
+        "fromEmail": "procurement-bot@fieldops.example",
+        "toEmail": "={{ $('Build Approval Card').item.json.approver }}",
+        "subject": "=Approval needed - {{ $('Build Approval Card').item.json.request_id }} ({{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.derived_amount }})",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>A procurement request needs your approval.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Request</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.request_id }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.sku }} - {{ $('Build Approval Card').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.derived_amount }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Best source</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.best_vendor_name }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Saving vs incumbent</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.savings_vs_incumbent }}</strong></td></tr></table><p style=\"margin:16px 0\"><a href=\"{{ $('Build Approval Card').item.json.approve_url }}\" style=\"background:#1a7f37;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none;margin-right:8px\">Approve</a><a href=\"{{ $('Build Approval Card').item.json.reject_url }}\" style=\"background:#cf222e;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none\">Reject</a></p><p style=\"color:#666;font-size:12px\">These links are single-use and expire once actioned. The same decision can be made from Slack.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        544,
+        2160
+      ],
+      "id": "e6346380-cf0e-47d8-9697-fbc8c7c33633",
+      "name": "Email Notification Awaiting Approval",
+      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "appendAttribution": false
+        },
+        "fromEmail": "procurement-bot@fieldops.example",
+        "toEmail": "={{ [$json.requester_email, $json.cost_owner].filter(Boolean).join(',') }}",
+        "subject": "=Auto-approved - {{ $('Normalize Request').item.json.request_id }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $('Normalize Request').item.json.request_id }}</strong> was <strong>auto-approved</strong>, under the configured approval ceiling for its business unit.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Quantity</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.quantity }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr></table><p>No further action is needed. It is ready for PO creation in your ERP.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        768,
+        2160
+      ],
+      "id": "72d521cd-f3cd-4b36-8763-b0def93a23dc",
+      "name": "Email Notification Auto Approval",
+      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "appendAttribution": false
+        },
+        "fromEmail": "procurement-bot@fieldops.example",
+        "toEmail": "={{ $('Normalize Request').item.json.requester_email }}",
+        "subject": "=Approved, ready for PO - {{ $('Build Outcome').item.json.request_id }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $('Build Outcome').item.json.request_id }}</strong> has been <strong>approved</strong>{{ $('Build Outcome').item.json.decided_by ? ' by ' + $('Build Outcome').item.json.decided_by : '' }}.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Saving vs incumbent</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.savings_vs_incumbent }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Time to decision</td><td style=\"padding:2px 0\"><strong>{{ $('Build Outcome').item.json.time_to_decision || 'n/a' }}</strong></td></tr></table><p>Ready for PO creation. The purchase order number comes from your ERP; internal reference is {{ $('Build Outcome').item.json.request_id }}.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        992,
+        2160
+      ],
+      "id": "905066be-6866-4170-bc06-33688bcc7571",
+      "name": "Email Notification Order Approved",
+      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "appendAttribution": false
+        },
+        "fromEmail": "procurement-bot@fieldops.example",
+        "toEmail": "={{ $json.requester_email || $json.from_email || $json.from || '' }}",
+        "subject": "Your procurement request could not be read automatically",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>We received your procurement email but could not read it automatically, so nothing has been ordered.</p><p>Please resubmit using the request form, which validates the fields as you go:</p><p style=\"margin:16px 0\"><a href=\"https://your-n8n.example/form/fde-procurement-request\" style=\"background:#0969da;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none\">Open the request form</a></p><p style=\"color:#666;font-size:12px\">This keeps a bad parse from turning into a wrong order.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        112,
+        2160
+      ],
+      "id": "533f7ea7-677d-4298-b0e9-b9d2f03d62aa",
+      "name": "Bounce Back Email Form",
+      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+      "disabled": true,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -1180,6 +1295,11 @@
             "node": "Build Outcome",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Email Notification Auto Approval",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1248,7 +1368,13 @@
     },
     "Post to #requests": {
       "main": [
-        []
+        [
+          {
+            "node": "Email Notification Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Build Approval Card": {
@@ -1267,6 +1393,11 @@
         [
           {
             "node": "Wait for Decision",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Notification Awaiting Approval",
             "type": "main",
             "index": 0
           }
@@ -1313,7 +1444,13 @@
     },
     "Post to #orders": {
       "main": [
-        []
+        [
+          {
+            "node": "Email Notification Order Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Load BU Policy": {
@@ -1391,6 +1528,17 @@
         [
           {
             "node": "Build Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounce Back (form link)": {
+      "main": [
+        [
+          {
+            "node": "Bounce Back Email Form",
             "type": "main",
             "index": 0
           }

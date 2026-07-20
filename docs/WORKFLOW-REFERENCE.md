@@ -131,14 +131,20 @@ time.
 | Column | Meaning |
 |---|---|
 | `request_id` | the requisition |
-| `event` | the state it transitioned to |
+| `event` | the terminal state it reached |
 | `detail` | JSON snapshot (route, amount, vendor, saving, flags) |
 | `actor` | who caused it |
-| `ts` | when |
+| `ts` | when the row was written |
+| `submitted_at` | intake timestamp (`created_at` from Normalize Request) |
+| `decided_at` | decision timestamp (human decision, or record time for auto-decided states) |
+| `cycle_seconds` | elapsed submission-to-decision, in seconds (0 for instant auto-approvals) |
 
-One row per state transition. This is the instrument the 90-day review and
-rule-drift detection read from. In production you would also branch this to a
-database or warehouse.
+One row per request at its terminal state. This is the instrument the 90-day
+review and rule-drift detection read from. Because `submitted_at`, `decided_at`
+and `cycle_seconds` are stored on the row, median and p90 cycle time and stall
+rate (share of requests over a threshold) are a query against this table, not a
+reconstruction. In production you would also branch this to a database or
+warehouse.
 
 ---
 
@@ -825,13 +831,20 @@ Posts the outcome to the orders channel. Third channel, third audience: decided.
 
 ### 24. Build Event Row  `code`
 
-Flattens the request into one audit row: request id, event (state), a JSON detail blob, actor, timestamp.
+Flattens the request into one audit row: request id, event (state), a JSON detail blob, actor, the write timestamp, and the cycle-time fields (`submitted_at`, `decided_at`, `cycle_seconds`).
 
-**What to change:** Add a field to the `detail` blob if you want it queryable at the 90-day review. Keep one row per state transition.
+**What to change:** Add a field to the `detail` blob if you want it queryable at the 90-day review. Keep one row per request. The timestamp fields make cycle time a direct query; leave them in place.
 
 ```js
-// RECORD: one row per state transition (the audit + drift instrument).
+// RECORD: one row per request at its terminal state (audit + cycle-time instrument).
 const j = $input.first().json;
+const now = new Date().toISOString();
+const submitted_at = j.created_at || null;
+// Human-gated paths carry decided_at; auto-decided/terminal states decide at record time.
+const decided_at = j.decided_at || now;
+const cycle_seconds = submitted_at
+  ? Math.max(0, Math.round((new Date(decided_at) - new Date(submitted_at)) / 1000))
+  : null;
 return [{ json: {
   request_id: j.request_id || 'UNKNOWN',
   event: j.state || 'UNKNOWN',
@@ -848,7 +861,10 @@ return [{ json: {
     approver: j.approver || null,
   }),
   actor: j.requester_email || 'system',
-  ts: new Date().toISOString(),
+  ts: now,
+  submitted_at,
+  decided_at,
+  cycle_seconds,
 }}];
 ```
 
@@ -1011,6 +1027,11 @@ The weekly query that matters: requests that entered and never terminated. n8n w
 show you green executions; green is not the same as done. The golden set is the
 artifact that keeps this true after a config change, so run it after every rule edit.
 
+Cycle time and stall rate read straight off `pr_events`: `cycle_seconds` per row gives
+median and p90 elapsed time, and the stall rate is the share of rows over your SLA. No
+separate instrumentation, and the before/after comparison uses the same definition on
+both sides.
+
 ## Troubleshooting
 
 **Everything from one business unit is denying.** It has no rows in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), or
@@ -1051,6 +1072,28 @@ rather than the enterprise pattern. The native path is n8n **External Secrets**
 (`$secrets.*` from Vault, Infisical, or AWS Secrets Manager), an Enterprise feature
 that would keep the reference inside n8n while the secret manager stays the source
 of truth. Either way the secret never enters the workflow export.
+
+## Email notifications
+
+Alongside the Slack posts, an email layer notifies people over their own inbox. Five
+`emailSend` nodes hang as parallel side-branches off the notify steps, so a failed send
+never affects routing:
+
+| Node | Fires when | Goes to |
+|---|---|---|
+| Email Notification Request | a request is received and priced | the requester |
+| Email Notification Awaiting Approval | a request needs a human | the approver (carries the approve / reject links) |
+| Email Notification Auto Approval | a request auto-approves under the ceiling | the requester and the cost owner (both need to know it auto-approved) |
+| Email Notification Order Approved | a request is approved | the requester |
+| Bounce Back Email Form | an email could not be parsed | the sender (with the form link) |
+
+Each body reads the request from the workflow's own nodes (`Normalize Request`, `Best
+Price + Maverick Flag`, `Build Approval Card`, `Build Outcome`), not from the Slack
+response, and each node continues on error so the flow completes even if mail is down.
+
+**These nodes ship disabled.** To turn the layer on: create an SMTP credential for your
+mail server, assign it to the five nodes, and enable them. The templates and wiring are
+already in place; Slack is the channel until then.
 
 ## What is deliberately not built (roadmap)
 

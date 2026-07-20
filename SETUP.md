@@ -36,7 +36,9 @@ doubles as the column reference and starting data):
   lead_time_days, asl_flag, contract_flag`
 - **business_units** — the unit registry: `code, name, active`
 - **pr_events** — the audit log. Create it empty; the workflow writes one row per
-  transition.
+  request at its terminal state:
+  `request_id, event, detail, actor, ts, submitted_at, decided_at, cycle_seconds`.
+  The three timestamp columns make cycle time and stall rate a direct query.
 
 Bands must not overlap: the evaluator asserts exactly one band claims an amount and
 default-denies if more than one does. A unit with no `doa_rules` rows is safe;
@@ -56,6 +58,14 @@ live in the workflow. An export of these workflows leaks nothing.
 
 Inject them into the n8n container from your secret store at runtime. Rotating a
 channel is a secret change and a restart, not a workflow edit.
+
+## 3b. Enable email notifications (optional)
+
+The workflows carry an email layer (five `emailSend` nodes: request received, awaiting
+approval, auto-approval, order approved, and a parse bounce-back) that **ships disabled**.
+To turn it on: create an SMTP credential for your mail server, assign it to the five
+nodes, and enable them. Each node continues on error, so an unreachable mail server never
+breaks a run. Until you do this, Slack is the notification channel.
 
 ## 4. Verify
 

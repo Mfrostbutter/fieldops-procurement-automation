@@ -33,7 +33,8 @@ to run the business.
   timer still fires.
 - **RECORD** — every terminal state writes one row to the audit log and posts the
   outcome. Rejections and escalations post too; a good-news-only channel is not an
-  audit trail.
+  audit trail. Notifications go to Slack and, once an SMTP credential is set, to the
+  requester and approver by email.
 
 ![The six-zone architecture, from intake through record, over the config tables that drive it](docs/assets/workflow-board.png)
 
@@ -93,8 +94,9 @@ Four tables carry everything that changes:
   which item, at what price and lead time.
 - **business_units** — the unit registry. Separate from the rules on purpose: a
   unit can exist before anyone has written its policy.
-- **pr_events** — every state transition. The measurement instrument; cycle time,
-  stall rate, and off-contract rate are all queries against it.
+- **pr_events** — one row per request at its terminal state, with `submitted_at`,
+  `decided_at`, and `cycle_seconds`. The measurement instrument; cycle time, stall
+  rate, and off-contract rate are all queries against it.
 
 Onboarding a unit or moving a threshold is a row edit. See
 [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) and [SETUP.md](SETUP.md).
