@@ -128,3 +128,9 @@ Deliberately not built in the pilot, and why:
   button cannot carry an auth cookie. A real Slack app is the hardening step.
 - **Dedup enforcement.** `request_id` is deterministic and ready; a single audit-log
   lookup before routing closes it.
+- **Scheduled regression runs.** The runner fires on demand today and gates DEV
+  before promotion. A cron trigger would run the golden suite on a schedule and
+  post the result to Slack, turning it into a standing health check. Running it
+  against PROD needs a callable trigger on prod plus test-data isolation (tagged
+  test rows, a test Slack channel) so runs never touch the real `pr_events` audit
+  table. Kept on-demand and DEV-only in the pilot to keep that boundary clean.
