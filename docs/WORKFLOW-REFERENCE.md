@@ -5,7 +5,7 @@ workflow: every node, what it does, and what you would change to make it yours.
 It pairs with the [architecture whiteboard](https://www.figma.com/board/workflow-board)
 (the six-zone flow) and the design notes in `../WORKFLOW-ARCHITECTURE.md`.
 
-![Procurement approval workflow: the six-zone architecture, from intake through record, over the config tables that drive it](assets/workflow-board.png)
+![Procurement approval workflow: the six-zone flow with the reject-to-revision loop under APPROVE, over the config tables that drive it](assets/workflow-board.png)
 
 ## First Principle: Config over Canvas
 
