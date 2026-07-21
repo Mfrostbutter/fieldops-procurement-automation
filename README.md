@@ -12,11 +12,11 @@ fix it, change it, or replicate it is here.
 
 | I want to | Go to |
 |---|---|
-| Understand the system | [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) — the three workflows, how they relate, the roadmap |
-| See the workflows | [WORKFLOW-BREAKDOWN.md](WORKFLOW-BREAKDOWN.md) — each workflow on the canvas, with what it does |
-| Operate or change a node | [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) — every node, what it does, what to change. Rendered: https://your-runbook.example |
-| Stand it up myself | [SETUP.md](SETUP.md) — import the workflows, seed the tables, set the secrets |
-| Prove a change is safe | [golden/](golden/) — the regression suite |
+| Understand the system | [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) - the three workflows, how they relate, the roadmap |
+| See the workflows | [WORKFLOW-BREAKDOWN.md](WORKFLOW-BREAKDOWN.md) - each workflow on the canvas, with what it does |
+| Operate or change a node | [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) - every node, what it does, what to change. Rendered: https://your-runbook.example |
+| Stand it up myself | [SETUP.md](SETUP.md) - import the workflows, seed the tables, set the secrets |
+| Prove a change is safe | [golden/](golden/) - the regression suite |
 
 ## What's here
 

@@ -1,4 +1,4 @@
-# FieldOps Co. Procurement — Workflow Breakdown
+# FieldOps Co. Procurement: Workflow Breakdown
 
 The visual companion to [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md): the four
 n8n workflows that make up the system, each shown on the canvas with what it does. For
@@ -24,10 +24,10 @@ the node-by-node runbook, see [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFEREN
   its route, derived amount, off-contract flag, savings, submission/decision timestamps, and
   revision lineage, so cycle time, stall rate, off-contract rate, and rework rate are queries
   against one table, not a separate reporting build.
-- **A rejection is a loop, not a dead end.** Reject captures a reason and hands off to a
-  separate Revision Loop workflow, which sends the requester the reason plus a pre-filled link
-  back into intake. The revised request is re-priced and re-routed from scratch, capped at three
-  attempts. Kept as its own workflow so production stays single-purpose.
+- **A rejection starts a loop, not a terminal state.** Reject captures a reason and hands off
+  to a separate Revision Loop workflow, which sends the requester the reason plus a pre-filled
+  link back into intake. The revised request is re-priced and re-routed from scratch, capped at
+  three attempts. Kept as its own workflow so production stays single-purpose.
 
 ---
 
@@ -46,35 +46,35 @@ from what is deployed.
 
 ---
 
-## 1. Production — Procure-to-Approve (BU-01, MRO)
+## 1. Production: Procure-to-Approve (BU-01, MRO)
 
 The live workflow. This is what runs against real requests. Six zones, left to right,
 top row then bottom:
 
 `INTAKE -> POLICY -> PRICE -> ROUTE -> APPROVE -> RECORD + CLOSE`
 
-- **INTAKE** — a form or an email becomes one normalized request. Bad input (an
-  unparseable quantity) refuses rather than guessing.
-- **POLICY** — load the unit's rules before pricing, because the lead-time tolerance
-  decides which vendors are even eligible.
-- **PRICE** — the amount is derived from the approved catalog and is lead-time aware. The
-  cheapest source that can arrive in time wins; any premium paid for speed is reported.
-- **ROUTE** — the delegation-of-authority matrix is the routing engine: auto-approve,
+- **INTAKE** - a form or an email becomes one normalized request. An unparseable quantity
+  THROWS instead of guessing.
+- **POLICY** - load the unit's rules before pricing, because the lead-time tolerance
+  decides which vendors are eligible.
+- **PRICE** - the amount is derived from the approved catalog and is lead-time aware. Drop
+  vendors over the tolerance, sort by unit price, pick the cheapest; if a cheaper vendor is
+  dropped for being too slow, record the extra cost.
+- **ROUTE** - the delegation-of-authority matrix is the routing engine: auto-approve,
   single, dual, or default-deny. A missing rule row denies to a human.
-- **APPROVE** — one gate, three routes. The approval link is state-shaped and works from
-  Slack or email, so a Slack outage never strands a request; the escalation timer still
-  fires.
-- **RECORD + CLOSE** — every terminal state writes one row to the audit log and posts the
+- **APPROVE** - one gate, three routes. The approval link is signed and works from Slack or
+  email, so a Slack outage never strands a request; the escalation timer still fires.
+- **RECORD + CLOSE** - every terminal state writes one row to the audit log and posts the
   outcome, over Slack and (once SMTP is set) email.
 
 The right-hand column is the maintainer's documentation, configuration, and runbook,
 carried on the canvas itself.
 
-![Production — the six-zone Procure-to-Approve flow](screenshots/01-production-procure-to-approve.png)
+![Production: the six-zone Procure-to-Approve flow](screenshots/01-production-procure-to-approve.png)
 
 ---
 
-## 2. DEV — Procure-to-Approve (DEV)
+## 2. DEV: Procure-to-Approve (DEV)
 
 A byte-for-byte copy of production that you edit and test. It carries **inert test
 hooks**: an Execute Workflow Trigger entry, and a `_mode === 'test'` short-circuit (the
@@ -83,7 +83,7 @@ Slack, the approval wait, and the audit write, so a test run has no side effects
 leaves nothing to clean up. In normal use the hooks never fire, so DEV stays a true copy
 you can promote. It uses its own form path so it can run active alongside production.
 
-![DEV — production plus the inert test hooks](screenshots/02-dev-procure-to-approve.png)
+![DEV: production plus the inert test hooks](screenshots/02-dev-procure-to-approve.png)
 
 ---
 
@@ -99,20 +99,20 @@ form completion page, and posts the findings to a **#regression** Slack channel 
 Because it runs the deployed decision code rather than a copy, it cannot drift from
 production.
 
-![Regression Test Runner — golden set against DEV, green before promote](screenshots/03-regression-runner.png)
+![Regression Test Runner: golden set against DEV, green before promote](screenshots/03-regression-runner.png)
 
 ---
 
-## 4. Revision Loop — reject, revise, re-approve
+## 4. Revision Loop: reject, revise, re-approve
 
 What happens after an approver rejects. Kept as its **own workflow** so production stays
 single-purpose (score a request, drive it to a decision) while rework lives on its own canvas
 with its own trigger, actors, and metric. Two zones:
 
-- **Reason capture** — the **Reject** button on the approval card opens a small form asking for
+- **Reason capture** - the **Reject** button on the approval card opens a small form asking for
   a mandatory reason. The form's action is the paused request's own resume URL, so submitting
   resumes the main flow with `decision=reject` and the typed reason. No parked wait here.
-- **Revision loop (thin bridge)** — the main flow fires this after it writes its own `REJECTED`
+- **Revision loop (thin bridge)** - the main flow fires this after it writes its own `REJECTED`
   row. Under the cap: notify the requester with the reason plus a **pre-filled link** back into
   intake (carrying `revision_of` + `revision_count`), and write a `REVISION_REQUESTED` audit row.
   At the cap (3 revisions): close as `REJECTED_FINAL` and tell the requester and the cost owner.
@@ -123,10 +123,10 @@ waiting for a human edit, and the audit stays one clean terminal row per request
 chain. That chain is what makes rework rate and end-to-end case cycle time queries against
 `pr_events`.
 
-![Revision Loop — reason capture, then the thin-bridge revision loop](screenshots/04-revision-loop.png)
+![Revision Loop: reason capture, then the thin-bridge revision loop](screenshots/04-revision-loop.png)
 
 ---
 
-The canvas documents itself: zoned sticky notes give orientation in seconds, and the
+The canvas documents itself: zoned sticky notes give orientation at a glance, and the
 linked runbook carries the decisions. Values live in neither, because they live in the
 config tables.

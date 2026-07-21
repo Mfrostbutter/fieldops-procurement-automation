@@ -13,10 +13,10 @@ Nothing here needs a code change; the whole system is config over canvas.
 
 Import the four JSONs under `workflows/` (n8n → Workflows → Import from File):
 
-- `fieldops-procure-to-approve.prod.json` — production, the live workflow.
-- `fieldops-procure-to-approve.dev.json` — DEV, the copy you edit and test.
-- `fieldops-regression-runner.json` — the evaluation harness.
-- `fieldops-revision-loop.json` — the reject, revise, re-approve loop.
+- `fieldops-procure-to-approve.prod.json` - production, the live workflow.
+- `fieldops-procure-to-approve.dev.json` - DEV, the copy you edit and test.
+- `fieldops-regression-runner.json` - the evaluation harness.
+- `fieldops-revision-loop.json` - the reject, revise, re-approve loop.
 
 The DEV workflow uses its own form path so it can run alongside production. The
 Runner calls DEV by workflow id; after import, open the Runner's **Run DEV logic**
@@ -34,15 +34,15 @@ The workflow reads four n8n Data Tables. Create them with these columns and seed
 the first three (a working snapshot is in `golden/golden_config.json`, which
 doubles as the column reference and starting data):
 
-- **doa_rules** — the routing engine. One row per threshold band:
+- **doa_rules** - the routing engine. One row per threshold band:
   `business_unit, category, threshold_min, threshold_max, approver_primary,
   approver_fallback, approval_mode, escalation_hours, auto_approve_under,
   max_lead_time_days, cost_center`
-- **vendor_catalog** — approved suppliers, one row per SKU per vendor:
+- **vendor_catalog** - approved suppliers, one row per SKU per vendor:
   `sku, description, category, vendor_id, vendor_name, unit_price, currency, uom,
   lead_time_days, asl_flag, contract_flag`
-- **business_units** — the unit registry: `code, name, active`
-- **pr_events** — the audit log. Create it empty; the workflow writes one row per
+- **business_units** - the unit registry: `code, name, active`
+- **pr_events** - the audit log. Create it empty; the workflow writes one row per
   request at its terminal state:
   `request_id, event, detail, actor, ts, submitted_at, decided_at, cycle_seconds,
   revision_of, revision_count`.
