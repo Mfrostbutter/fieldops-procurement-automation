@@ -30,7 +30,8 @@ to run the business.
   human; it never auto-approves.
 - **APPROVE** — one gate, three routes. The approval link is state-shaped and works
   from Slack or email, so a Slack outage never strands a request; the escalation
-  timer still fires.
+  timer still fires. Reject captures a mandatory reason and hands off to the Revision
+  Loop; it is the start of a loop, not a dead end.
 - **RECORD** — every terminal state writes one row to the audit log and posts the
   outcome. Rejections and escalations post too; a good-news-only channel is not an
   audit trail. Notifications go to Slack and, once an SMTP credential is set, to the
@@ -38,10 +39,10 @@ to run the business.
 
 ![The six-zone architecture, from intake through record, over the config tables that drive it](docs/assets/workflow-board.png)
 
-## The three workflows
+## The workflows
 
 A dev/prod split with an evaluation harness, so a change can be proven before it
-reaches production.
+reaches production, plus the revision loop that runs alongside it.
 
 ### 1. Production — `workflows/fieldops-procure-to-approve.prod.json`
 
@@ -62,6 +63,17 @@ golden set through DEV's **real decision logic**, asserts each request still rou
 to the right place for the right amount, shows pass or fail on the result page, and
 posts the findings to a **#regression** Slack channel so the team sees every run.
 
+### 4. Revision Loop — `workflows/fieldops-revision-loop.json`
+
+The reject, revise, re-approve loop, kept out of production so production stays
+single-purpose. When an approver rejects, this workflow captures the reason and sends
+the requester a pre-filled link back into intake; the revised request is a **new
+production run**, re-priced and re-routed from scratch, capped at three attempts. It is
+a runtime companion, not part of the promote loop above. Every pass links to its chain
+root (`revision_of`), so rework rate and end-to-end case cycle time are queries against
+`pr_events`. See [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) → "Zone:
+REVISION LOOP" for the node reference and the terminate-and-link rationale.
+
 ### How they relate
 
 ```
@@ -70,7 +82,7 @@ edit DEV  ->  run the Runner  ->  green?  ->  promote DEV to production
               golden set (golden/) = the source of truth for "correct"
 ```
 
-The golden set is the artifact the whole system rests on. It is 18 known requests
+The golden set is the artifact the whole system rests on. It is 19 known requests
 with known-correct outcomes, and it runs the workflow's own decision code, so it
 cannot drift from what is deployed. See
 [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) → "Evaluations" for the
@@ -95,8 +107,9 @@ Four tables carry everything that changes:
 - **business_units** — the unit registry. Separate from the rules on purpose: a
   unit can exist before anyone has written its policy.
 - **pr_events** — one row per request at its terminal state, with `submitted_at`,
-  `decided_at`, and `cycle_seconds`. The measurement instrument; cycle time, stall
-  rate, and off-contract rate are all queries against it.
+  `decided_at`, `cycle_seconds`, and revision lineage (`revision_of`,
+  `revision_count`). The measurement instrument; cycle time, stall rate, off-contract
+  rate, and rework rate are all queries against it.
 
 Onboarding a unit or moving a threshold is a row edit. See
 [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) and [SETUP.md](SETUP.md).

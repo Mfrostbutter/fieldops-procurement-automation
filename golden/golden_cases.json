@@ -339,5 +339,26 @@
       "savings_vs_incumbent": 0,
       "maverick_flag": false
     }
+  },
+  {
+    "_note": "Rework re-score: the same item as bu01-single-small-band (MRO-1006 qty 30 -> single approval), revised down to qty 15 -> derived 915, under the 1000 auto-approve ceiling -> auto-approves. Proves a revision is re-priced and re-routed from scratch, not re-stamped with the original decision.",
+    "name": "bu01-rework-revised-down-auto",
+    "input": {
+      "business_unit": "BU-01",
+      "sku": "MRO-1006",
+      "quantity": 15,
+      "category": "MRO"
+    },
+    "expect": {
+      "route": "auto_approve",
+      "route_reason": "matched_band",
+      "state": "APPROVED",
+      "self_check": "pass",
+      "catalog_match": true,
+      "best_vendor_id": "VEND-B",
+      "derived_amount": 915,
+      "savings_vs_incumbent": 97.5,
+      "maverick_flag": false
+    }
   }
 ]

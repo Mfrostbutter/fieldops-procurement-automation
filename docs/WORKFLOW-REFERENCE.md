@@ -138,13 +138,17 @@ time.
 | `submitted_at` | intake timestamp (`created_at` from Normalize Request) |
 | `decided_at` | decision timestamp (human decision, or record time for auto-decided states) |
 | `cycle_seconds` | elapsed submission-to-decision, in seconds (0 for instant auto-approvals) |
+| `revision_of` | chain root: the original request id when this is a revision, else null |
+| `revision_count` | which attempt this is (0 for a first submission) |
 
-One row per request at its terminal state. This is the instrument the 90-day
-review and rule-drift detection read from. Because `submitted_at`, `decided_at`
-and `cycle_seconds` are stored on the row, median and p90 cycle time and stall
-rate (share of requests over a threshold) are a query against this table, not a
-reconstruction. In production you would also branch this to a database or
-warehouse.
+One row per request at its terminal state, plus the `REVISION_REQUESTED` and
+`REJECTED_FINAL` events the [revision loop](#zone-revision-loop) writes. This is
+the instrument the 90-day review and rule-drift detection read from. Because
+`submitted_at`, `decided_at` and `cycle_seconds` are stored on the row, median
+and p90 cycle time and stall rate (share of requests over a threshold) are a
+query against this table, not a reconstruction. Because `revision_of` links every
+pass to its chain root, rework rate and end-to-end case cycle time are queries
+too. In production you would also branch this to a database or warehouse.
 
 ---
 
@@ -831,9 +835,9 @@ Posts the outcome to the orders channel. Third channel, third audience: decided.
 
 ### 24. Build Event Row  `code`
 
-Flattens the request into one audit row: request id, event (state), a JSON detail blob, actor, the write timestamp, and the cycle-time fields (`submitted_at`, `decided_at`, `cycle_seconds`).
+Flattens the request into one audit row: request id, event (state), a JSON detail blob (which now carries the rejection reason), actor, the write timestamp, the cycle-time fields (`submitted_at`, `decided_at`, `cycle_seconds`), and the revision lineage (`revision_of`, `revision_count`).
 
-**What to change:** Add a field to the `detail` blob if you want it queryable at the 90-day review. Keep one row per request. The timestamp fields make cycle time a direct query; leave them in place.
+**What to change:** Add a field to the `detail` blob if you want it queryable at the 90-day review. Keep one row per request. The timestamp and lineage fields make cycle time and rework rate direct queries; leave them in place.
 
 ```js
 // RECORD: one row per request at its terminal state (audit + cycle-time instrument).
@@ -859,12 +863,15 @@ return [{ json: {
     maverick_flag: j.maverick_flag ?? null,
     catalog_match: j.catalog_match ?? null,
     approver: j.approver || null,
+    reject_reason: j.reject_reason || null,
   }),
   actor: j.requester_email || 'system',
   ts: now,
   submitted_at,
   decided_at,
   cycle_seconds,
+  revision_of: j.revision_of || null,
+  revision_count: j.revision_count ?? 0,
 }}];
 ```
 
@@ -873,6 +880,54 @@ return [{ json: {
 Appends the row to [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log). This table is the measurement instrument the whole 90-day value story reads from, and the input to rule-drift detection.
 
 **What to change:** Point at your `pr_events` table id. In production this is also where you would branch to a database or warehouse for real reporting.
+
+## Zone: REVISION LOOP
+
+**What happens after an approver rejects.** A rejection is not a dead end; it is the start of a reject, revise, re-approve loop. This lives in its own workflow, `FieldOps - Revision Loop`, so the production flow stays single-purpose (score a request, drive it to a decision) and rework is a separate concern with its own trigger, actors, and metric.
+
+**The shape is a thin bridge, not a parked wait.** The production flow terminates a rejection cleanly (it writes its own `REJECTED` row) and then fires this loop. The revised request comes back as a **new production run**, re-priced and re-routed from scratch, carrying `revision_of` and `revision_count`. Nothing sits in a long-lived waiting execution, which is deliberate: an n8n wait node that parks for a human edit can hang indefinitely, and the audit model stays one clean terminal row per request, linked into a chain.
+
+**Why terminate-and-link beats park-and-resume.** A revision is not a re-stamp of the original decision. A changed quantity or vendor changes the derived amount and can change the route: a revision that drops under the auto-approve ceiling now auto-approves; one that crosses into dual approval escalates. Re-entering the same engine is the config-over-canvas payoff, and the golden set proves it (`bu01-rework-revised-down-auto`).
+
+### R1. Reject Reason Webhook  `webhook` (GET)
+
+The **Reject** button on the approval card points here, not straight at the resume URL. It renders a small form asking for a mandatory rejection reason. The reason is what the requester revises against, so it is captured at the moment of rejection.
+
+**What to change:** Nothing usually. The path (`fde-reject-form`) must match the URL the approval card builds.
+
+### R2. Build Reason Form  `code`
+
+Renders the reason form as HTML. The form's action is the paused request's **own resume URL**, and it submits by **GET** because the Wait node resumes on GET (the same method as the Slack/email approve link). A GET submit rewrites the query string, so the signature and `decision=reject` are carried as hidden inputs alongside the typed reason.
+
+**What to change:** Styling only. Do not switch the form to POST; the Wait node will not match it.
+
+### R3. Return Form  `respondToWebhook`
+
+Returns the rendered HTML to the approver's browser.
+
+### R4. Revision Notify Webhook  `webhook` (POST)
+
+The production flow calls this (fire-and-forget) after it writes the `REJECTED` row. The body carries the request, the reason, the cost owner, and the current `revision_count`. It responds immediately, so the production run is never blocked on it.
+
+### R5. Prepare Revision  `code`
+
+Bounds the loop and builds the return path. It computes the next attempt number, decides whether the cap is hit (3 revisions), fixes the chain root (`revision_of` = the original request id), and builds a **pre-filled intake link** carrying the item, the requester, and the lineage as query parameters, so the requester reopens the request already populated.
+
+**What to change:** `MAX` (the revision cap). The link is built by hand because `URLSearchParams` is not available in the Code sandbox.
+
+### R6. Revision Cap Hit?  `if`
+
+Splits the two outcomes: under the cap, ask for a revision; at the cap, close it.
+
+### R7. Under the cap: notify + record
+
+`Build Revision Row` -> `Write Revision Row` writes a `REVISION_REQUESTED` row to [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log) (with the reason, the attempt number, and the link). In parallel, `Email Revision Request` sends the requester the reason plus the pre-filled link, and `Post Revision to Slack` posts to `#orders`. The requester's revised submission is a fresh production run.
+
+### R8. At the cap: close as REJECTED_FINAL
+
+`Build Final Row` -> `Write Final Row` writes a `REJECTED_FINAL` row. `Email Final Rejection` tells the requester **and** the cost owner it is closed with no further revisions, and `Post Final to Slack` posts the same. No pre-filled link is offered.
+
+**The metric this unlocks:** because every pass links back to the chain root, rework rate is `count(revision_of IS NOT NULL) / count(distinct chain)`, and end-to-end case cycle time spans the first submission to the final decision, both queries against [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log). A single client-carried `revision_count` is the pilot's cap mechanism; a server-side recount of the chain is the hardening step.
 
 
 ---
@@ -911,7 +966,7 @@ deliberate.
 ## Evaluations: the golden set (regression tests)
 
 The workflow has no LLM, so its correctness is a **test suite**, not a model
-evaluation. The golden set (`golden/`) is 18 known requests with known-correct
+evaluation. The golden set (`golden/`) is 19 known requests with known-correct
 outcomes. It pulls the four decision nodes' **actual source** from the workflow
 export and replays them against a snapshot of the config tables, so it runs the
 deployed logic and cannot drift from it.
@@ -923,7 +978,7 @@ node golden/run_golden.mjs
 ```
 
 ```
-18 passed, 0 failed, 18 total
+19 passed, 0 failed, 19 total
 ```
 
 It covers every route and every default-deny reason: auto-approve floors, single
@@ -1027,7 +1082,7 @@ The weekly query that matters: requests that entered and never terminated. n8n w
 show you green executions; green is not the same as done. The golden set is the
 artifact that keeps this true after a config change, so run it after every rule edit.
 
-Cycle time and stall rate read straight off `pr_events`: `cycle_seconds` per row gives
+Cycle time and stall rate read straight off [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log): `cycle_seconds` per row gives
 median and p90 elapsed time, and the stall rate is the share of rows over your SLA. No
 separate instrumentation, and the before/after comparison uses the same definition on
 both sides.
@@ -1089,11 +1144,13 @@ never affects routing:
 
 Each body reads the request from the workflow's own nodes (`Normalize Request`, `Best
 Price + Maverick Flag`, `Build Approval Card`, `Build Outcome`), not from the Slack
-response, and each node continues on error so the flow completes even if mail is down.
+response, and each node is set to **continue on error** so the flow completes even if
+mail is down.
 
-**These nodes ship disabled.** To turn the layer on: create an SMTP credential for your
-mail server, assign it to the five nodes, and enable them. The templates and wiring are
-already in place; Slack is the channel until then.
+**To turn it on:** point the SMTP credential (`FieldOps SMTP (placeholder - set your mail
+server)`) at your mail server. That is the only change; the nodes and templates are
+already wired. Until then the nodes attempt to send against a placeholder host and
+continue, and Slack is the live channel.
 
 ## What is deliberately not built (roadmap)
 

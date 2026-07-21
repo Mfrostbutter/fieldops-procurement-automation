@@ -1,1352 +1,1532 @@
 {
-  "name": "FieldOps — Procure-to-Approve (BU-01 MRO)",
-  "nodes": [
-    {
-      "parameters": {
-        "content": "",
-        "height": 2416,
-        "width": 2800
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "id": "Sticky Note1",
-      "name": "Sticky Note1",
-      "position": [
-        -736,
-        -432
-      ]
-    },
-    {
-      "parameters": {
-        "content": "# [Documentation, Configuration Overview & Resources](https://your-runbook.example/)",
-        "height": 2672,
-        "width": 1040
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        2096,
-        -576
-      ],
-      "typeVersion": 1,
-      "id": "93761bc4-4e67-4d3a-9b1d-acd8976536ff",
-      "name": "Sticky Note"
-    },
-    {
-      "parameters": {
-        "formTitle": "FieldOps Procurement Request",
-        "formDescription": "Raise a purchase requisition. Pricing is derived from approved vendor catalogs.",
-        "formFields": {
-          "values": [
-            {
-              "fieldLabel": "business_unit",
-              "fieldType": "dropdown",
-              "fieldOptions": {
-                "values": [
-                  {
-                    "option": "BU-01"
-                  },
-                  {
-                    "option": "BU-02"
-                  },
-                  {
-                    "option": "BU-03"
-                  }
-                ]
-              },
-              "requiredField": true
-            },
-            {
-              "fieldLabel": "sku",
-              "placeholder": "e.g. MRO-1001",
-              "requiredField": true
-            },
-            {
-              "fieldLabel": "item_description",
-              "placeholder": "What do you need?"
-            },
-            {
-              "fieldLabel": "quantity",
-              "fieldType": "number",
-              "requiredField": true
-            },
-            {
-              "fieldLabel": "category",
-              "fieldType": "dropdown",
-              "fieldOptions": {
-                "values": [
-                  {
-                    "option": "MRO"
-                  }
-                ]
-              },
-              "requiredField": true
-            },
-            {
-              "fieldLabel": "cost_center",
-              "placeholder": "e.g. CC-4400"
-            },
-            {
-              "fieldLabel": "preferred_vendor",
-              "placeholder": "optional, e.g. VEND-A"
-            },
-            {
-              "fieldLabel": "justification"
-            },
-            {
-              "fieldLabel": "requester_email",
-              "fieldType": "email",
-              "requiredField": true
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.formTrigger",
-      "typeVersion": 2.2,
-      "position": [
-        -592,
-        416
-      ],
-      "id": "form-trigger",
-      "name": "Procurement Request Form",
-      "webhookId": "fde-procurement-request",
-      "notesInFlow": true,
-      "notes": "FRONT DOOR 1 of 2. Reliable structured path; feeds the baseline from day 1.\nThe business_unit dropdown is GENERATED from the business_units table. Adding a BU means re-running the generator, not editing this node."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Normalize every intake channel to one purchase-requisition shape.\nconst f = $input.first().json;\nconst now = new Date().toISOString();\n\nconst norm = (v) => (v === undefined || v === null ? '' : String(v).trim());\n\n// request_id: deterministic on content + minute, so a same-minute resubmit collides for dedup.\nconst seed = [norm(f.business_unit), norm(f.sku), norm(f.quantity),\n              norm(f.requester_email), now.slice(0, 16)].join('|');\nlet h = 0;\nfor (let i = 0; i < seed.length; i++) { h = (h * 31 + seed.charCodeAt(i)) >>> 0; }\nconst request_id = 'PR-' + now.slice(0, 10).replace(/-/g, '') + '-' + h.toString(36).toUpperCase().padStart(7, '0');\n\nreturn [{ json: {\n  request_id,\n  intake_channel: norm(f.intake_channel) || 'form',\n  business_unit: norm(f.business_unit) || 'BU-01',\n  sku: norm(f.sku).toUpperCase(),\n  item_description: norm(f.item_description),\n  quantity: (() => {\n    // Throw on bad quantity; defaulting to 1 is a silent wrong order.\n    const q = Number(f.quantity);\n    if (!Number.isFinite(q) || q <= 0) {\n      throw new Error('Invalid quantity: ' + JSON.stringify(f.quantity) +\n                      ' (request ' + request_id + '). Refusing to default.');\n    }\n    return q;\n  })(),\n  category: norm(f.category) || 'MRO',\n  cost_center: norm(f.cost_center) || 'CC-4400',\n  preferred_vendor: norm(f.preferred_vendor),\n  justification: norm(f.justification),\n  requester_email: norm(f.requester_email),\n  created_at: now,\n  state: 'RECEIVED',\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -64,
-        352
-      ],
-      "id": "normalize-request",
-      "name": "Normalize Request",
-      "notesInFlow": true,
-      "notes": "One hallway. Every front door converges here on ONE request object, so everything downstream sees one shape.\nMints request_id (deterministic on content + minute).\nTHROWS on an invalid quantity rather than defaulting. Inventing a value is a silent failure."
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "dataTableId": {
-          "__rl": true,
-          "value": "w8I8nRcAngNcFXqr",
-          "mode": "id"
-        },
-        "matchType": "allConditions",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "sku",
-              "keyValue": "={{ $('Normalize Request').first().json.sku }}"
-            },
-            {
-              "keyName": "category",
-              "keyValue": "={{ $('Normalize Request').first().json.category }}"
-            }
-          ]
-        },
-        "returnAll": true
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        1296,
-        544
-      ],
-      "id": "vendor-catalog-lookup",
-      "name": "Vendor Catalog Lookup",
-      "alwaysOutputData": true,
-      "notesInFlow": true,
-      "notes": "READS: vendor_catalog, filtered on sku + category.\nSKU-level ASL: the rows are the vendors approved to supply THIS item.\nNo rows = no approved source. Handled, not an error."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Derive amount from vendor catalogs; pick cheapest source within the BU lead-time tolerance.\nconst req = $('Normalize Request').first().json;\nconst qty = Number(req.quantity) || 1;\n\n// BU lead-time tolerance, loaded before pricing.\nconst policy = $('Load BU Policy').first().json;\nconst maxLead = Number(policy.max_lead_time_days);\nconst hasTolerance = Number.isFinite(maxLead) && maxLead > 0;\n\nconst rows = $input.all().map(i => i.json).filter(r => r && r.sku && r.vendor_id);\n\nif (rows.length === 0) {\n  // No catalog match: route to sourcing, never auto-approve.\n  return [{ json: { ...req, catalog_match: false, match_count: 0,\n    derived_amount: null, state: 'NEEDS_SOURCING' }}];\n}\n\nconst priced = rows\n  .map(r => ({ ...r, unit_price: Number(r.unit_price), lead_time_days: Number(r.lead_time_days) }))\n  .filter(r => Number.isFinite(r.unit_price))\n  .sort((a, b) => a.unit_price - b.unit_price);\n\n// Keep only vendors that can deliver within tolerance.\nconst eligible = hasTolerance\n  ? priced.filter(r => Number.isFinite(r.lead_time_days) && r.lead_time_days <= maxLead)\n  : priced;\n\n// None in tolerance: take the fastest, flag a breach, force a human.\nconst breach = hasTolerance && eligible.length === 0;\nconst pool = breach\n  ? [...priced].sort((a, b) => a.lead_time_days - b.lead_time_days)\n  : eligible;\n\nconst best = pool[0];\nconst excluded = priced\n  .filter(r => !pool.includes(r))\n  .map(r => ({ vendor: r.vendor_name, price: r.unit_price, lead_time_days: r.lead_time_days }));\n\n// VEND-A is the incumbent; delta vs it is the contract-leakage number.\nconst incumbent = priced.find(r => r.vendor_id === 'VEND-A') || null;\nconst derived_amount = Number((best.unit_price * qty).toFixed(2));\nconst incumbent_amount = incumbent ? Number((incumbent.unit_price * qty).toFixed(2)) : null;\nconst savings = incumbent_amount !== null\n  ? Number((incumbent_amount - derived_amount).toFixed(2)) : 0;\n\n// Lead-time premium: cost of not taking the cheapest source.\nconst cheapest = priced[0];\nconst lead_time_premium = (best.vendor_id !== cheapest.vendor_id)\n  ? Number(((best.unit_price - cheapest.unit_price) * qty).toFixed(2)) : 0;\n\nconst maverick_flag = Boolean(req.preferred_vendor) && req.preferred_vendor !== best.vendor_id;\n\nreturn [{ json: { ...req,\n  catalog_match: true,\n  match_count: priced.length,\n  best_vendor_id: best.vendor_id,\n  best_vendor_name: best.vendor_name,\n  best_unit_price: best.unit_price,\n  contract_flag: best.contract_flag,\n  lead_time_days: best.lead_time_days,\n  max_lead_time_days: hasTolerance ? maxLead : null,\n  lead_time_breach: breach,\n  lead_time_premium,\n  excluded_on_lead_time: excluded,\n  currency: best.currency || 'EUR',\n  derived_amount,\n  incumbent_amount,\n  savings_vs_incumbent: savings,\n  maverick_flag,\n  alternatives: priced.map(p => ({\n    vendor: p.vendor_name, price: p.unit_price,\n    contract: p.contract_flag, lead_time_days: p.lead_time_days,\n  })),\n  state: 'PRICED',\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1488,
-        544
-      ],
-      "id": "best-price--maverick-flag",
-      "name": "Best Price + Maverick Flag",
-      "notesInFlow": true,
-      "notes": "The amount is DERIVED here, never asserted by the requester.\nRanks approved vendors by unit price, then applies the BU's max_lead_time_days: the cheapest source that can actually arrive in time wins.\nIf NOTHING meets tolerance: takes the fastest, sets lead_time_breach, forces a human.\nFlags maverick when the requester named a vendor that is not the best source."
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.catalog_match }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1664,
-        544
-      ],
-      "id": "catalog-match-if",
-      "name": "Catalog Match?",
-      "notesInFlow": true,
-      "notes": "Priced -> ROUTE. No approved source -> sourcing event.\nA no-match is never an auto-approve and never a silent drop."
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "a1",
-              "name": "state",
-              "value": "NEEDS_SOURCING",
-              "type": "string"
-            },
-            {
-              "id": "a2",
-              "name": "stub_note",
-              "value": "ROADMAP: three-quote collection. Detection ships in the pilot; the sourcing event itself is spec'd, not built.",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        1488,
-        784
-      ],
-      "id": "needs-sourcing-(rfq)",
-      "name": "Needs Sourcing (RFQ)",
-      "notesInFlow": true,
-      "notes": "Terminal for this pilot. Detection ships; three-quote collection is ROADMAP.\nStill writes a full event row and posts to #orders."
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "dataTableId": {
-          "__rl": true,
-          "value": "67HHfBJm7BXwEp8s",
-          "mode": "id"
-        },
-        "matchType": "allConditions",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "business_unit",
-              "keyValue": "={{ $('Normalize Request').first().json.business_unit }}"
-            },
-            {
-              "keyName": "category",
-              "keyValue": "={{ $('Normalize Request').first().json.category }}"
-            }
-          ]
-        },
-        "returnAll": true
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        688,
-        496
-      ],
-      "id": "doa-rule-lookup",
-      "name": "DoA Rule Lookup",
-      "alwaysOutputData": true,
-      "notesInFlow": true,
-      "notes": "READS: doa_rules, filtered on business_unit + category.\nReturns every threshold band for that BU. No rows is a legitimate state and it becomes a default-deny downstream, never a pass."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Route on DoA bands; self-check grades its own output. Deterministic, no LLM.\nconst req = $input.first().json;\nconst amount = Number(req.derived_amount);\n\nconst rules = $('DoA Rule Lookup').all().map(i => i.json).filter(r => r && r.business_unit && r.category);\nconst base = { ...req, evaluated_at: new Date().toISOString() };\n\n// Default-deny: no rule row for this BU/category.\nif (rules.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'no_rule_row_for_bu_category', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Default-deny: no vendor within lead-time tolerance.\nif (req.lead_time_breach) {\n  const r0 = rules[0];\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'lead_time_breach', approver: r0.approver_primary || null,\n    approver_fallback: r0.approver_fallback, escalation_hours: Number(r0.escalation_hours),\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\nconst bands = rules.filter(r =>\n  amount >= Number(r.threshold_min) && amount < Number(r.threshold_max));\n\n// Default-deny: amount outside every band.\nif (bands.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'amount_outside_all_bands', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Self-check: exactly one band must match; overlapping bands are a config error.\nconst self_check = bands.length === 1 ? 'pass' : 'FAIL_overlapping_bands';\nif (self_check !== 'pass') {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'overlapping_rule_bands', matched_bands: bands.length,\n    approver: null, self_check, state: 'AWAITING_APPROVAL' }}];\n}\n\nconst band = bands[0];\nconst autoUnder = Number(band.auto_approve_under) || 0;\n\n// approval_mode is config, not code.\nlet route;\nif (autoUnder > 0 && amount < autoUnder) route = 'auto_approve';\nelse if (String(band.approval_mode).toLowerCase() === 'dual') route = 'dual_approver';\nelse route = 'single_approver';\n\nreturn [{ json: { ...base,\n  route, route_reason: 'matched_band',\n  band_min: Number(band.threshold_min), band_max: Number(band.threshold_max),\n  approval_mode: band.approval_mode,\n  approver: route === 'auto_approve' ? null : band.approver_primary,\n  approver_fallback: band.approver_fallback,\n  cost_owner: band.approver_primary,\n  escalation_hours: Number(band.escalation_hours),\n  auto_approve_under: autoUnder,\n  self_check,\n  state: route === 'auto_approve' ? 'APPROVED' : 'AWAITING_APPROVAL',\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -656,
-        1520
-      ],
-      "id": "threshold-eval--self-check",
-      "name": "Threshold Eval + Self-Check",
-      "notesInFlow": true,
-      "notes": "Deterministic. No LLM on this path, so the golden set is a TEST SUITE, not model eval.\nSelects the band by amount and reads approval_mode from the row: single vs dual is CONFIG, not code.\nDEFAULT-DENY on: no rule row, lead-time breach, amount outside all bands, overlapping bands.\nself_check asserts exactly one band claims the amount."
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "auto_approve",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "single_approver",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "dual_approver",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "default_deny",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            }
-          ]
-        },
-        "options": {
-          "fallbackOutput": 3
-        }
-      },
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.2,
-      "position": [
-        -176,
-        1488
-      ],
-      "id": "route-switch",
-      "name": "Route Decision",
-      "notesInFlow": true,
-      "notes": "Four outputs: auto-approve / single / dual / DEFAULT-DENY.\nFallback output is default-deny by design. An unrecognised route must reach a human."
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "a1",
-              "name": "state",
-              "value": "APPROVED",
-              "type": "string"
-            },
-            {
-              "id": "a2",
-              "name": "stub_note",
-              "value": "Under the configured auto_approve_under ceiling. Still writes a full event trail.",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        592,
-        1472
-      ],
-      "id": "auto-approved",
-      "name": "Auto-Approved",
-      "notesInFlow": true,
-      "notes": "Under the BU's configured auto_approve_under ceiling.\nStill writes a full event trail and still posts an outcome. Auto does not mean invisible."
-    },
-    {
-      "parameters": {
-        "jsCode": "// RECORD: one row per request at its terminal state (audit + cycle-time instrument).\nconst j = $input.first().json;\nconst now = new Date().toISOString();\nconst submitted_at = j.created_at || null;\n// Human-gated paths carry decided_at; auto-decided/terminal states decide at record time.\nconst decided_at = j.decided_at || now;\nconst cycle_seconds = submitted_at\n  ? Math.max(0, Math.round((new Date(decided_at) - new Date(submitted_at)) / 1000))\n  : null;\nreturn [{ json: {\n  request_id: j.request_id || 'UNKNOWN',\n  event: j.state || 'UNKNOWN',\n  detail: JSON.stringify({\n    route: j.route || null,\n    route_reason: j.route_reason || null,\n    self_check: j.self_check || null,\n    derived_amount: j.derived_amount ?? null,\n    currency: j.currency || 'EUR',\n    best_vendor: j.best_vendor_name || null,\n    savings_vs_incumbent: j.savings_vs_incumbent ?? null,\n    maverick_flag: j.maverick_flag ?? null,\n    catalog_match: j.catalog_match ?? null,\n    approver: j.approver || null,\n  }),\n  actor: j.requester_email || 'system',\n  ts: now,\n  submitted_at,\n  decided_at,\n  cycle_seconds,\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1504,
-        1520
-      ],
-      "id": "build-event-row",
-      "name": "Build Event Row",
-      "notesInFlow": true,
-      "notes": "One row per state transition. This table IS the instrument."
-    },
-    {
-      "parameters": {
-        "dataTableId": {
-          "__rl": true,
-          "value": "WAfXQqVAdlo8Bruh",
-          "mode": "id"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": null,
-          "matchingColumns": [],
-          "schema": []
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        1680,
-        1520
-      ],
-      "id": "events-insert",
-      "name": "Write Event Row",
-      "notesInFlow": true,
-      "notes": "WRITES: pr_events.\nCycle time, stall rate, off-contract rate and rule drift are all queries against this table. A dashboard is roadmap; the table is the deliverable."
-    },
-    {
-      "parameters": {
-        "options": {
-          "customEmailConfig": "[\"UNSEEN\"]"
-        }
-      },
-      "type": "n8n-nodes-base.emailReadImap",
-      "typeVersion": 2,
-      "position": [
-        -592,
-        656
-      ],
-      "id": "email-trigger",
-      "name": "Procurement Mailbox (IMAP)",
-      "notesInFlow": true,
-      "disabled": true,
-      "notes": "FRONT DOOR 2 of 2. Disabled until a mailbox credential is wired.\nIMAP not Gmail: no public OAuth redirect on this box, and the customer is a connector swap anyway."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Deterministic regex parse of a templated procurement email. No LLM (extraction is roadmap).\n\nconst m = $input.first().json;\n\nconst subject = String(m.subject || '');\nconst from = String(m.from || m.fromEmail || '');\nlet body = String(m.text || m.textPlain || m.snippet || '');\n\n// Cut quoted reply history so a forwarded thread can't yield stale values.\nconst cut = body.search(/^\\s*(>|On .+wrote:|-----Original Message-----|_{5,}|From:\\s)/m);\nif (cut > 0) body = body.slice(0, cut);\n\n// Accept \"Key: value\" lines, case-insensitive, with common label variants.\nconst ALIASES = {\n  business_unit: ['business unit', 'business_unit', 'bu'],\n  sku:           ['sku', 'part number', 'part no', 'material', 'item number'],\n  item_description: ['description', 'item', 'item description'],\n  quantity:      ['quantity', 'qty'],\n  category:      ['category'],\n  cost_center:   ['cost center', 'cost centre', 'cost_center', 'cc'],\n  preferred_vendor: ['preferred vendor', 'vendor', 'supplier'],\n  justification: ['justification', 'reason', 'notes'],\n  requester_email: ['requester email', 'requester', 'requested by'],\n};\n\nconst found = {};\nfor (const raw of body.split(/\\r?\\n/)) {\n  const mm = raw.match(/^\\s*\\*?\\s*([A-Za-z _\\/-]{2,30}?)\\s*\\*?\\s*[:\\-]\\s*(.+?)\\s*$/);\n  if (!mm) continue;\n  const label = mm[1].trim().toLowerCase();\n  const value = mm[2].trim();\n  for (const [field, names] of Object.entries(ALIASES)) {\n    if (names.includes(label) && !(field in found)) { found[field] = value; break; }\n  }\n}\n\n// Sender is the requester unless the template overrides.\nconst senderMatch = from.match(/[\\w.+-]+@[\\w.-]+\\.\\w+/);\nif (!found.requester_email && senderMatch) found.requester_email = senderMatch[0];\n\n// Parseable only if the fields the pipeline can't invent are present.\nconst REQUIRED = ['business_unit', 'sku', 'quantity'];\nconst missing = REQUIRED.filter(f => !found[f] || String(found[f]).trim() === '');\n// \"two boxes\" strips to \"\" and Number(\"\") is 0: require non-empty and > 0.\nconst qtyRaw = String(found.quantity || '').replace(/[^\\d.]/g, '');\nconst qtyNum = qtyRaw === '' ? NaN : Number(qtyRaw);\nconst qtyValid = Number.isFinite(qtyNum) && qtyNum > 0;\nif (!missing.includes('quantity') && !qtyValid) missing.push('quantity');\n\nreturn [{ json: {\n  ...found,\n  quantity: qtyValid ? qtyNum : null,\n  category: found.category || 'MRO',\n  intake_channel: 'email',\n  parse_ok: missing.length === 0,\n  parse_missing: missing,\n  source_subject: subject,\n  source_from: from,\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -64,
-        528
-      ],
-      "id": "parse-email",
-      "name": "Parse Request Email",
-      "notesInFlow": true,
-      "notes": "DETERMINISTIC parse, no LLM. At this company size the request mail is already a template, so it is a regex problem.\nHandles label aliases and cuts quoted/forwarded history so a reply thread cannot inject a stale SKU.\nWhether the mail is templated is a DISCOVERY finding, not an assumption."
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "p1",
-              "leftValue": "={{ $json.parse_ok }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        224,
-        528
-      ],
-      "id": "parse-ok-if",
-      "name": "Parse OK?",
-      "notesInFlow": true,
-      "notes": "Requires business_unit + sku + a positive numeric quantity.\nAnything short of that bounces. It never routes on a guess."
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "b1",
-              "name": "state",
-              "value": "BOUNCED_TO_REQUESTER",
-              "type": "string"
-            },
-            {
-              "id": "b2",
-              "name": "stub_note",
-              "value": "Non-conforming mail. Reply with a prefilled form link rather than guessing. Cheap, and it cannot be wrong. LLM extraction is the roadmap item, justified only if the mailbox sample shows a tail big enough to matter.",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        -64,
-        768
-      ],
-      "id": "bounce-back",
-      "name": "Bounce Back (form link)",
-      "notesInFlow": true,
-      "notes": "Reply with a prefilled form link. Cheap, and it cannot be wrong.\nLLM extraction stays roadmap, justified only if the mailbox sample shows a non-conforming tail big enough to matter."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Post to #requests: requisition received and priced. Separate channel/audience from #approvals.\nconst j = $input.first().json;\nconst money = (n) => (n === null || n === undefined) ? 'n/a'\n  : (j.currency || 'EUR') + ' ' + Number(n).toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});\nreturn [{ json: { ...j, slack_payload: {\n  text: 'New requisition ' + j.request_id,\n  blocks: [\n    {type: 'section', text: {type: 'mrkdwn',\n      text: '*New requisition* `' + j.request_id + '`\\n' + j.sku +\n            (j.item_description ? ' - ' + j.item_description : '') + '  ×' + j.quantity}},\n    {type: 'context', elements: [{type: 'mrkdwn',\n      text: j.business_unit + '  |  ' + money(j.derived_amount) + ' via ' + (j.best_vendor_name || 'n/a') +\n            '  |  raised by ' + (j.requester_email || 'unknown') + ' (' + (j.intake_channel || 'form') + ')'}]},\n  ]}}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -656,
-        1712
-      ],
-      "id": "notify-requests-build",
-      "name": "Notify #requests",
-      "notesInFlow": true,
-      "notes": "Side branch, NOT a pipeline stage. A notification must never sit between two steps that pass data, or the next step receives an HTTP response instead of the request."
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.REQUESTS_SLACK_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -432,
-        1712
-      ],
-      "id": "notify-requests-post",
-      "name": "Post to #requests",
-      "notesInFlow": true,
-      "onError": "continueRegularOutput",
-      "notes": "Webhook URL from the container env (fed from the secret store). Nothing secret is stored in this workflow, so an export leaks nothing.\nTerminal branch."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build the Slack approval card and both decision links (same resume URL, different decision).\nconst j = $input.first().json;\nconst resume = $execution.resumeUrl;\n\nconst money = (n) => (n === null || n === undefined)\n  ? 'n/a'\n  : (j.currency || 'EUR') + ' ' + Number(n).toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});\n\n// resumeUrl already carries ?signature=; join with & or the resume 401s.\nconst join = (u, kv) => u + (u.includes('?') ? '&' : '?') + kv;\nconst approveUrl = join(resume, 'decision=approve');\nconst rejectUrl  = join(resume, 'decision=reject');\n\nconst alts = Array.isArray(j.alternatives) ? j.alternatives : [];\nconst altLines = alts.slice(0, 4)\n  .map(a => '• ' + a.vendor + '  ' + money(a.price) + '  _' + a.contract + '_')\n  .join('\\n') || '_no alternatives_';\n\nconst flags = [];\nif (j.maverick_flag) flags.push(':warning: *Off-contract request* - requester named ' + (j.preferred_vendor || 'another vendor') + ', not the best contracted source');\nif (j.route === 'default_deny') flags.push(':no_entry: *Default-deny* - ' + (j.route_reason || 'no matching rule') + '. This did NOT auto-approve.');\nif (j.route === 'dual_approver') flags.push(':busts_in_silhouette: *Dual approval* - this is gate 1 of 2');\n\nconst blocks = [\n  {type: 'header', text: {type: 'plain_text', text: 'Purchase requisition ' + j.request_id}},\n  {type: 'section', fields: [\n    {type: 'mrkdwn', text: '*Business unit*\\n' + j.business_unit},\n    {type: 'mrkdwn', text: '*Cost center*\\n' + (j.cost_center || 'n/a')},\n    {type: 'mrkdwn', text: '*Item*\\n' + j.sku + (j.item_description ? ' - ' + j.item_description : '')},\n    {type: 'mrkdwn', text: '*Quantity*\\n' + j.quantity},\n    {type: 'mrkdwn', text: '*Amount (derived)*\\n' + money(j.derived_amount)},\n    {type: 'mrkdwn', text: '*Best source*\\n' + (j.best_vendor_name || 'n/a')},\n  ]},\n  {type: 'section', text: {type: 'mrkdwn',\n    text: '*Savings vs incumbent:* ' + money(j.savings_vs_incumbent) +\n          '\\n*Lead time:* ' + (j.lead_time_days ?? 'n/a') + ' days   *Pricing:* ' + (j.contract_flag || 'n/a')}},\n  {type: 'section', text: {type: 'mrkdwn', text: '*Priced against*\\n' + altLines}},\n];\nif (flags.length) blocks.push({type: 'section', text: {type: 'mrkdwn', text: flags.join('\\n')}});\nblocks.push({type: 'context', elements: [{type: 'mrkdwn',\n  text: 'Requested by ' + (j.requester_email || 'unknown') + ' via ' + (j.intake_channel || 'form') +\n        '  |  routes to ' + (j.approver || 'a human') + '  |  escalates in ' + (j.escalation_hours ?? 24) + 'h'}]});\nblocks.push({type: 'actions', elements: [\n  {type: 'button', style: 'primary', text: {type: 'plain_text', text: 'Approve'}, url: approveUrl},\n  {type: 'button', style: 'danger',  text: {type: 'plain_text', text: 'Reject'},  url: rejectUrl},\n]});\n\nreturn [{ json: { ...j,\n  slack_payload: {\n    text: 'Approval needed: ' + j.request_id + ' ' + money(j.derived_amount),\n    blocks,\n  },\n  approve_url: approveUrl,\n  reject_url: rejectUrl,\n  awaiting_since: new Date().toISOString(),\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        304,
-        1648
-      ],
-      "id": "build-approval-card",
-      "name": "Build Approval Card",
-      "notesInFlow": true,
-      "notes": "Builds the Slack card and BOTH decision links from this execution's Wait resume URL.\nn8n already signs that URL, so the links are joined with & (a second ? swallows the signature and the resume 401s).\nSame link works from email: the approval is state-shaped, not Slack-shaped."
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.APPROVALS_SLACK_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        512,
-        1648
-      ],
-      "id": "post-approvals",
-      "name": "Post to #approvals",
-      "notesInFlow": true,
-      "onError": "continueRegularOutput",
-      "notes": "#approvals holds ONLY undecided items, so it stays a work queue. Outcomes go to #orders.\nWebhook URL from container env."
-    },
-    {
-      "parameters": {
-        "resume": "webhook",
-        "limitWaitTime": true,
-        "resumeAmount": "={{ $json.escalation_hours || 24 }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        736,
-        1648
-      ],
-      "id": "wait-decision",
-      "name": "Wait for Decision",
-      "webhookId": "pr-decision",
-      "notesInFlow": true,
-      "notes": "Resumes on the decision link, or times out after the BU's escalation_hours.\nA timeout carries NO decision, which IS the escalation signal.\nState survives restarts because it is a row, not a variable in a running process."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Resume from Slack button, email link, or Wait timeout. Timeout = no decision = escalate.\nconst prior = $('Build Approval Card').first().json;\n\n// Webhook resume exposes the caller's query; timeout has none.\nconst first = $input.first().json || {};\nconst q = first.query || (first.body && first.body.query) || {};\nconst decision = String(q.decision || '').toLowerCase();\n\nconst base = { ...prior, decided_at: new Date().toISOString() };\n\nif (decision === 'approve') {\n  return [{ json: { ...base, decision: 'approved', decided_by: prior.approver || 'approver',\n                    state: prior.route === 'dual_approver' ? 'GATE1_APPROVED' : 'APPROVED' }}];\n}\nif (decision === 'reject') {\n  return [{ json: { ...base, decision: 'rejected', decided_by: prior.approver || 'approver',\n                    state: 'REJECTED' }}];\n}\n\n// No decision: wait elapsed, escalate to configured fallback.\nreturn [{ json: { ...base, decision: 'timed_out', decided_by: null,\n                  escalated_to: prior.approver_fallback || null,\n                  state: 'ESCALATED' }}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        960,
-        1648
-      ],
-      "id": "apply-decision",
-      "name": "Apply Decision",
-      "notesInFlow": true,
-      "notes": "approve / reject / timeout -> escalate to approver_fallback.\nThe fallback approver comes from the rules table. Data, not a code change."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build the #orders post for every terminal state (approved/rejected/escalated/needs-sourcing).\nconst j = $input.first().json;\n\nconst money = (n) => (n === null || n === undefined) ? 'n/a'\n  : (j.currency || 'EUR') + ' ' + Number(n).toLocaleString('de-DE',\n      {minimumFractionDigits: 2, maximumFractionDigits: 2});\n\n// Time-to-decision: capture now, while both timestamps exist.\nlet elapsed = null;\nif (j.awaiting_since && j.decided_at) {\n  const ms = new Date(j.decided_at) - new Date(j.awaiting_since);\n  if (Number.isFinite(ms) && ms >= 0) {\n    const mins = Math.round(ms / 60000);\n    elapsed = mins < 60 ? mins + ' min'\n            : (mins < 1440 ? (mins / 60).toFixed(1) + ' h' : (mins / 1440).toFixed(1) + ' days');\n  }\n}\n\nconst state = String(j.state || '').toUpperCase();\nconst MAP = {\n  APPROVED:        [':white_check_mark:', 'Approved'],\n  GATE1_APPROVED:  [':white_check_mark:', 'Approved at gate 1 of 2'],\n  REJECTED:        [':x:', 'Rejected'],\n  ESCALATED:       [':alarm_clock:', 'Escalated, no decision in time'],\n  NEEDS_SOURCING:  [':mag:', 'No catalog match, sourcing required'],\n};\nconst [icon, label] = MAP[state] || [':grey_question:', state || 'Unknown'];\n\nconst lines = [];\nlines.push(icon + ' *' + label + '* - `' + j.request_id + '`');\nlines.push('*' + (j.sku || 'n/a') + '*' + (j.item_description ? ' - ' + j.item_description : '') +\n           '  ×' + (j.quantity ?? 'n/a'));\n\nif (state === 'NEEDS_SOURCING') {\n  lines.push('_No approved vendor lists this item. Routed for RFQ / three quotes rather than auto-approved._');\n} else {\n  lines.push(money(j.derived_amount) + ' via *' + (j.best_vendor_name || 'n/a') + '*' +\n             (j.savings_vs_incumbent ? '  (' + money(j.savings_vs_incumbent) + ' under the incumbent contract price)' : ''));\n}\nif (j.maverick_flag) {\n  lines.push(':warning: Off-contract request corrected at intake - requester named ' +\n             (j.preferred_vendor || 'another vendor') + '.');\n}\nif (state === 'ESCALATED') {\n  lines.push(':arrow_right: Escalated to *' + (j.escalated_to || 'fallback approver') +\n             '* after ' + (j.escalation_hours ?? 24) + 'h with no decision.');\n}\nif (j.route === 'default_deny') {\n  lines.push(':no_entry: Reached a human by *default-deny* (' + (j.route_reason || 'no matching rule') +\n             '). It did not auto-approve.');\n}\n\nconst ctx = [];\nctx.push(j.business_unit + (j.cost_center ? ' / ' + j.cost_center : ''));\nctx.push('raised by ' + (j.requester_email || 'unknown') + ' via ' + (j.intake_channel || 'form'));\nif (j.decided_by) ctx.push('decided by ' + j.decided_by);\nif (elapsed) ctx.push('time to decision ' + elapsed);\n\n// No PO number invented; the ERP owns that sequence (write-back is roadmap).\nconst poLine = (state === 'APPROVED' || state === 'GATE1_APPROVED')\n  ? '_Ready for PO creation. ERP write-back is roadmap, so the purchase order number still comes from your ERP. Internal reference `' + j.request_id + '`._'\n  : null;\n\nconst blocks = [\n  {type: 'section', text: {type: 'mrkdwn', text: lines.join('\\n')}},\n];\nif (poLine) blocks.push({type: 'section', text: {type: 'mrkdwn', text: poLine}});\nblocks.push({type: 'context', elements: [{type: 'mrkdwn', text: ctx.join('  |  ')}]});\n\nreturn [{ json: { ...j,\n  time_to_decision: elapsed,\n  slack_payload: { text: label + ': ' + j.request_id, blocks },\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1312,
-        1520
-      ],
-      "id": "build-outcome",
-      "name": "Build Outcome",
-      "notesInFlow": true,
-      "notes": "Every terminal state posts an outcome: approved, rejected, escalated, no-match.\nA good-news-only channel is not an audit trail.\nComputes time-to-decision, which is the number the 90-day value story is built on.\nDoes NOT mint a PO number: the ERP owns that sequence, and a number that exists only here is a reconciliation problem handed to the customer."
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.ORDERS_SLACK_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1312,
-        1760
-      ],
-      "id": "post-orders",
-      "name": "Post to #orders",
-      "notesInFlow": true,
-      "onError": "continueRegularOutput",
-      "notes": "Side branch, terminal. Webhook URL from container env."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Collapse the BU's rule rows to ONE item (req + policy) so pricing doesn't fan out.\nconst req = $('Normalize Request').first().json;\nconst rules = $input.all().map(i => i.json).filter(r => r && r.business_unit);\n\n// max_lead_time_days is per BU+category; take the strictest if rows disagree.\nconst leads = rules.map(r => Number(r.max_lead_time_days)).filter(n => Number.isFinite(n) && n > 0);\nconst maxLead = leads.length ? Math.min(...leads) : null;\n\nreturn [{ json: { ...req,\n  policy_rule_count: rules.length,\n  max_lead_time_days: maxLead,\n  has_policy: rules.length > 0,\n}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        912,
-        496
-      ],
-      "id": "load-policy",
-      "name": "Load BU Policy",
-      "notesInFlow": true,
-      "notes": "Collapses the BU's rule rows into ONE item carrying the request + its policy.\nNOT cosmetic: a Data Table lookup runs once per INPUT item, so letting 3 band rows through fans the catalog lookup out into 3 duplicate copies of every vendor.\nTakes the STRICTEST max_lead_time_days if bands ever disagree."
-    },
-    {
-      "parameters": {
-        "content": "# FieldOps Co. — Procure-to-Approve  (pilot: BU-01, MRO)\n**One workflow. The business units differ in their CONFIG ROWS, not in their shape.**\n\n`INTAKE → POLICY → PRICE → ROUTE → APPROVE → RECORD`\n\nLoad the BU's policy, price within it, route on the derived amount, gate it with a human, record every transition.\n\nCanvas = what this is and what each part's contract is. The maintainer doc = why it is shaped this way. Values live in neither: they are in the config tables.",
-        "height": 320,
-        "width": 2704,
-        "color": 7
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -688,
-        -384
-      ],
-      "id": "sticky-title",
-      "name": "Sticky title"
-    },
-    {
-      "parameters": {
-        "content": "## [1. INTAKE](https://your-runbook.example/#zone-intake)\n**Multiple front doors, one hallway.**\n\nIN: a form submission or an email.\nOUT: one normalized request object with a request_id.\nREADS: [business_units](https://your-runbook.example/#business_units-the-bu-registry) (for the dropdown).\n\n**Form** is the reliable structured path and feeds the baseline from day 1.\n**Email** meets people where they already are, parsed deterministically. Non-conforming mail bounces back with a form link; it never routes on a guess.\n\nON FAILURE: an invalid quantity THROWS rather than defaulting to 1. Inventing a value is a silent failure that reaches a purchase order.",
-        "height": 1056,
-        "width": 1216,
-        "color": 4
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -688,
-        -48
-      ],
-      "id": "sticky-intake",
-      "name": "Sticky intake"
-    },
-    {
-      "parameters": {
-        "content": "## [2. POLICY](https://your-runbook.example/#zone-policy)\n**Load the BU's rules before pricing.**\n\nIN: normalized request.\nOUT: request + that BU's policy, as ONE item.\nREADS: [doa_rules](https://your-runbook.example/#doa_rules-the-policy-master) on business_unit + category.\n\nPricing has to happen INSIDE the policy, because the lead-time tolerance decides which vendors are even eligible.\n\nON FAILURE: no rule rows is legitimate (a BU can exist with no policy yet). It becomes an explicit default-deny in ROUTE, never a pass.",
-        "height": 1056,
-        "width": 624,
-        "color": 3
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        544,
-        -48
-      ],
-      "id": "sticky-policy",
-      "name": "Sticky policy"
-    },
-    {
-      "parameters": {
-        "content": "## [3. PRICE](https://your-runbook.example/#zone-price)\n**The amount is DERIVED, never asserted.**\n\nIN: request + policy.\nOUT: best source, derived amount, savings vs incumbent, flags.\nREADS: [vendor_catalog](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) on sku + category (SKU-level ASL).\n\nRanks approved vendors by unit price, then applies the BU's `max_lead_time_days`. The cheapest source that can actually arrive in time wins, and the premium paid for speed is reported rather than hidden.\n\nON FAILURE:\n• no approved source → sourcing event, never an auto-approve\n• nothing inside tolerance → fastest available, flagged, forced to a human",
-        "height": 1056,
-        "width": 832,
-        "color": 6
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1184,
-        -48
-      ],
-      "id": "sticky-price",
-      "name": "Sticky price"
-    },
-    {
-      "parameters": {
-        "content": "## [4. ROUTE](https://your-runbook.example/#zone-route)\n**The DoA matrix IS the routing engine.**\n\nIN: priced request.\nOUT: one of auto-approve / single / dual / default-deny.\nREADS: the policy already loaded in step 2.\n\nDeterministic, and it grades its own output. 8 BUs differ in thresholds and approvers, not in shape: one workflow, N config rows.\n\n**DEFAULT-DENY on:** missing rule row, lead-time breach, amount outside all bands, overlapping bands, unrecognised route.\nA missing config row must NEVER auto-approve.",
-        "height": 912,
-        "width": 848,
-        "color": 5
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -688,
-        1024
-      ],
-      "id": "sticky-route",
-      "name": "Sticky route"
-    },
-    {
-      "parameters": {
-        "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason), not in shape, so they share one gate.\n\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email, so **the approval is state-shaped, not Slack-shaped**. If Slack is down the timer still fires.\n\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.",
-        "height": 912,
-        "width": 944,
-        "color": 4
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        176,
-        1024
-      ],
-      "id": "sticky-approve",
-      "name": "Sticky approve"
-    },
-    {
-      "parameters": {
-        "content": "## [6. RECORD + CLOSE](https://your-runbook.example/#zone-record)\n**The instrument is a table, not a dashboard.**\n\nIN: any terminal state.\nOUT: one row per transition, plus an outcome post.\nWRITES: [pr_events](https://your-runbook.example/#pr_events-the-audit-log).  POSTS: #orders.\n\nCycle time, stall rate, off-contract rate and rule drift are all queries against this table. A dashboard is roadmap.\n\nEvery terminal state posts, including rejections and escalations. A good-news-only channel is not an audit trail.\n\n**No PO number is invented here.** The ERP owns that sequence.",
-        "height": 912,
-        "width": 880,
-        "color": 5
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1136,
-        1024
-      ],
-      "id": "sticky-record",
-      "name": "Sticky record"
-    },
-    {
-      "parameters": {
-        "content": "## [RUNBOOK — onboard a business unit](https://your-runbook.example/#onboard-a-business-unit)\n*You should not need to open a single node to do this.*\n\n**1.** Add the BU to the **[business_units](https://your-runbook.example/#business_units-the-bu-registry)** table (`code`, `name`, `active`).\n\n**2.** Add its rows to **[doa_rules](https://your-runbook.example/#doa_rules-the-policy-master)**, one per threshold band:\n`business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`\n\n**3.** Run the golden set. If it passes, that BU is live.\n\nBands must not overlap: the evaluator asserts exactly one band claims an amount and default-denies if more than one does.\n\nA BU with no rows is safe. Every request from it default-denies to a human until somebody writes the policy. That is deliberate.",
-        "height": 624,
-        "width": 912,
-        "color": 7
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2160,
-        -512
-      ],
-      "id": "sticky-runbook-bu",
-      "name": "Sticky runbook-bu"
-    },
-    {
-      "parameters": {
-        "content": "## [CONFIGURATION](https://your-runbook.example/#config-tables-change-these-not-the-canvas)\n*Four tables. Everything that changes weekly is in one of them, and none of it is on this canvas.*\n\n**[doa_rules](https://your-runbook.example/#doa_rules-the-policy-master)** — thresholds, approvers, escalation windows, approval mode, lead-time tolerance. The routing engine.\n\n**[vendor_catalog](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list)** — the hosted vendor catalogs. SKU-level ASL: which vendors are approved for which item, at what price and lead time.\n\n**[business_units](https://your-runbook.example/#business_units-the-bu-registry)** — the BU master. Separate from the rules on purpose: a BU can exist before anyone has written its policy.\n\n**[pr_events](https://your-runbook.example/#pr_events-the-audit-log)** — every state transition. Read-only in practice; this is the measurement instrument.\n\nChanging an approver or a threshold is a ROW EDIT, not a deploy. Nobody has to open n8n.",
-        "height": 624,
-        "width": 912,
-        "color": 7
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2160,
-        128
-      ],
-      "id": "sticky-runbook-config",
-      "name": "Sticky runbook-config"
-    },
-    {
-      "parameters": {
-        "content": "## [TROUBLESHOOTING](https://your-runbook.example/#troubleshooting)\n\n**Everything from one BU is denying.** It has no rows in [doa_rules](https://your-runbook.example/#doa_rules-the-policy-master), or its bands overlap. Check `route_reason` on the event row.\n\n**A request took an unexpected vendor.** Check `max_lead_time_days` for that BU: the cheapest source may not meet its tolerance. `lead_time_premium` shows what the tolerance cost.\n\n**An approval link says invalid token.** Resume URLs are single-use and die once actioned. Expected behaviour, not a fault.\n\n**Nothing arrived in Slack.** The webhook URLs come from the container env. Check they are present before suspecting the workflow.\n\n**It is 2am and it is broken.** Find the request_id in [pr_events](https://your-runbook.example/#pr_events-the-audit-log), read the last transition, and the failure is in the next step. Nothing is lost, because state is a row and not a variable in a running process.",
-        "height": 624,
-        "width": 912,
-        "color": 7
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2160,
-        768
-      ],
-      "id": "sticky-runbook-break",
-      "name": "Sticky runbook-break"
-    },
-    {
-      "parameters": {
-        "content": "## [FAILURE MODES](https://your-runbook.example/#failure-modes)\n*The failure mode this workflow is built to refuse.*\n\nA run can be green and still be wrong. Four places that is defended:\n\n**1.** A missing rule row default-denies instead of passing.\n**2.** A low-confidence email parse bounces instead of routing.\n**3.** The threshold evaluator grades its own output (`self_check`).\n**4.** An unmeetable lead time is flagged, not quietly ignored.\n\n**The weekly query that matters:** requests that entered and never terminated. n8n will show you green executions. Green is not the same as done.\n\nThe golden set is the artifact that keeps this true after a config change. Run it after every rule edit.",
-        "height": 624,
-        "width": 912,
-        "color": 7
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2160,
-        1408
-      ],
-      "id": "sticky-runbook-green",
-      "name": "Sticky runbook-green"
-    },
-    {
-      "parameters": {
-        "options": {
-          "appendAttribution": false
-        },
-        "fromEmail": "procurement-bot@fieldops.example",
-        "toEmail": "={{ $('Normalize Request').item.json.requester_email }}",
-        "subject": "=Requisition received - {{ $('Normalize Request').item.json.request_id }}",
-        "emailFormat": "html",
-        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your procurement request <strong>{{ $('Normalize Request').item.json.request_id }}</strong> has been received and priced.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Quantity</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.quantity }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Business unit</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.business_unit }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Priced at</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr></table><p>You will get another note when it is approved, or if it needs a human decision.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
-      },
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [
-        336,
-        2160
-      ],
-      "id": "428a8184-468a-426e-833f-2b3187b8b703",
-      "name": "Email Notification Request",
-      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
-      "disabled": true,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "options": {
-          "appendAttribution": false
-        },
-        "fromEmail": "procurement-bot@fieldops.example",
-        "toEmail": "={{ $('Build Approval Card').item.json.approver }}",
-        "subject": "=Approval needed - {{ $('Build Approval Card').item.json.request_id }} ({{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.derived_amount }})",
-        "emailFormat": "html",
-        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>A procurement request needs your approval.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Request</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.request_id }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.sku }} - {{ $('Build Approval Card').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.derived_amount }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Best source</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.best_vendor_name }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Saving vs incumbent</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.savings_vs_incumbent }}</strong></td></tr></table><p style=\"margin:16px 0\"><a href=\"{{ $('Build Approval Card').item.json.approve_url }}\" style=\"background:#1a7f37;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none;margin-right:8px\">Approve</a><a href=\"{{ $('Build Approval Card').item.json.reject_url }}\" style=\"background:#cf222e;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none\">Reject</a></p><p style=\"color:#666;font-size:12px\">These links are single-use and expire once actioned. The same decision can be made from Slack.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
-      },
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [
-        544,
-        2160
-      ],
-      "id": "e6346380-cf0e-47d8-9697-fbc8c7c33633",
-      "name": "Email Notification Awaiting Approval",
-      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
-      "disabled": true,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "options": {
-          "appendAttribution": false
-        },
-        "fromEmail": "procurement-bot@fieldops.example",
-        "toEmail": "={{ [$json.requester_email, $json.cost_owner].filter(Boolean).join(',') }}",
-        "subject": "=Auto-approved - {{ $('Normalize Request').item.json.request_id }}",
-        "emailFormat": "html",
-        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $('Normalize Request').item.json.request_id }}</strong> was <strong>auto-approved</strong>, under the configured approval ceiling for its business unit.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Quantity</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.quantity }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr></table><p>No further action is needed. It is ready for PO creation in your ERP.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
-      },
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [
-        768,
-        2160
-      ],
-      "id": "72d521cd-f3cd-4b36-8763-b0def93a23dc",
-      "name": "Email Notification Auto Approval",
-      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
-      "disabled": true,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "options": {
-          "appendAttribution": false
-        },
-        "fromEmail": "procurement-bot@fieldops.example",
-        "toEmail": "={{ $('Normalize Request').item.json.requester_email }}",
-        "subject": "=Approved, ready for PO - {{ $('Build Outcome').item.json.request_id }}",
-        "emailFormat": "html",
-        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $('Build Outcome').item.json.request_id }}</strong> has been <strong>approved</strong>{{ $('Build Outcome').item.json.decided_by ? ' by ' + $('Build Outcome').item.json.decided_by : '' }}.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Saving vs incumbent</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.savings_vs_incumbent }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Time to decision</td><td style=\"padding:2px 0\"><strong>{{ $('Build Outcome').item.json.time_to_decision || 'n/a' }}</strong></td></tr></table><p>Ready for PO creation. The purchase order number comes from your ERP; internal reference is {{ $('Build Outcome').item.json.request_id }}.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
-      },
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [
-        992,
-        2160
-      ],
-      "id": "905066be-6866-4170-bc06-33688bcc7571",
-      "name": "Email Notification Order Approved",
-      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
-      "disabled": true,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "options": {
-          "appendAttribution": false
-        },
-        "fromEmail": "procurement-bot@fieldops.example",
-        "toEmail": "={{ $json.requester_email || $json.from_email || $json.from || '' }}",
-        "subject": "Your procurement request could not be read automatically",
-        "emailFormat": "html",
-        "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>We received your procurement email but could not read it automatically, so nothing has been ordered.</p><p>Please resubmit using the request form, which validates the fields as you go:</p><p style=\"margin:16px 0\"><a href=\"https://your-n8n.example/form/fde-procurement-request\" style=\"background:#0969da;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none\">Open the request form</a></p><p style=\"color:#666;font-size:12px\">This keeps a bad parse from turning into a wrong order.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>"
-      },
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [
-        112,
-        2160
-      ],
-      "id": "533f7ea7-677d-4298-b0e9-b9d2f03d62aa",
-      "name": "Bounce Back Email Form",
-      "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
-      "disabled": true,
-      "onError": "continueRegularOutput"
-    }
-  ],
-  "connections": {
-    "Procurement Request Form": {
-      "main": [
-        [
-          {
-            "node": "Normalize Request",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Request": {
-      "main": [
-        [
-          {
-            "node": "DoA Rule Lookup",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Vendor Catalog Lookup": {
-      "main": [
-        [
-          {
-            "node": "Best Price + Maverick Flag",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Best Price + Maverick Flag": {
-      "main": [
-        [
-          {
-            "node": "Catalog Match?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Catalog Match?": {
-      "main": [
-        [
-          {
-            "node": "Threshold Eval + Self-Check",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notify #requests",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Needs Sourcing (RFQ)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Needs Sourcing (RFQ)": {
-      "main": [
-        [
-          {
-            "node": "Build Outcome",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "DoA Rule Lookup": {
-      "main": [
-        [
-          {
-            "node": "Load BU Policy",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Threshold Eval + Self-Check": {
-      "main": [
-        [
-          {
-            "node": "Route Decision",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Route Decision": {
-      "main": [
-        [
-          {
-            "node": "Auto-Approved",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Build Approval Card",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Build Approval Card",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Build Approval Card",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Auto-Approved": {
-      "main": [
-        [
-          {
-            "node": "Build Outcome",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Email Notification Auto Approval",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Event Row": {
-      "main": [
-        [
-          {
-            "node": "Write Event Row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Procurement Mailbox (IMAP)": {
-      "main": [
-        [
-          {
-            "node": "Parse Request Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Request Email": {
-      "main": [
-        [
-          {
-            "node": "Parse OK?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse OK?": {
-      "main": [
-        [
-          {
-            "node": "Normalize Request",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Bounce Back (form link)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Notify #requests": {
-      "main": [
-        [
-          {
-            "node": "Post to #requests",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Post to #requests": {
-      "main": [
-        [
-          {
-            "node": "Email Notification Request",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Approval Card": {
-      "main": [
-        [
-          {
-            "node": "Post to #approvals",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Post to #approvals": {
-      "main": [
-        [
-          {
-            "node": "Wait for Decision",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Email Notification Awaiting Approval",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait for Decision": {
-      "main": [
-        [
-          {
-            "node": "Apply Decision",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Apply Decision": {
-      "main": [
-        [
-          {
-            "node": "Build Outcome",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Outcome": {
-      "main": [
-        [
-          {
-            "node": "Build Event Row",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Post to #orders",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Post to #orders": {
-      "main": [
-        [
-          {
-            "node": "Email Notification Order Approved",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Load BU Policy": {
-      "main": [
-        [
-          {
-            "node": "Vendor Catalog Lookup",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Bounce Back (form link)": {
-      "main": [
-        [
-          {
-            "node": "Bounce Back Email Form",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+ "name": "FieldOps \u00e2\u20ac\u201d Procure-to-Approve (BU-01 MRO)",
+ "nodes": [
+  {
+   "parameters": {
+    "content": "",
+    "height": 2416,
+    "width": 2800
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "id": "Sticky Note1",
+   "name": "Sticky Note1",
+   "position": [
+    -736,
+    -432
+   ]
   },
-  "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate"
+  {
+   "parameters": {
+    "content": "# [Documentation, Configuration Overview & Resources](https://your-runbook.example/)",
+    "height": 2672,
+    "width": 1040
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    2080,
+    -432
+   ],
+   "typeVersion": 1,
+   "id": "93761bc4-4e67-4d3a-9b1d-acd8976536ff",
+   "name": "Sticky Note"
+  },
+  {
+   "parameters": {
+    "formTitle": "FieldOps Procurement Request",
+    "formDescription": "Raise a purchase requisition. Pricing is derived from approved vendor catalogs.",
+    "formFields": {
+     "values": [
+      {
+       "fieldLabel": "business_unit",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "BU-01"
+         },
+         {
+          "option": "BU-02"
+         },
+         {
+          "option": "BU-03"
+         }
+        ]
+       },
+       "requiredField": true
+      },
+      {
+       "fieldLabel": "sku",
+       "placeholder": "e.g. MRO-1001",
+       "requiredField": true
+      },
+      {
+       "fieldLabel": "item_description",
+       "placeholder": "What do you need?"
+      },
+      {
+       "fieldLabel": "quantity",
+       "fieldType": "number",
+       "requiredField": true
+      },
+      {
+       "fieldLabel": "category",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "MRO"
+         }
+        ]
+       },
+       "requiredField": true
+      },
+      {
+       "fieldLabel": "cost_center",
+       "placeholder": "e.g. CC-4400"
+      },
+      {
+       "fieldLabel": "preferred_vendor",
+       "placeholder": "optional, e.g. VEND-A"
+      },
+      {
+       "fieldLabel": "justification"
+      },
+      {
+       "fieldLabel": "requester_email",
+       "fieldType": "email",
+       "requiredField": true
+      },
+      {
+       "fieldName": "revision_of",
+       "fieldType": "hiddenField"
+      },
+      {
+       "fieldName": "revision_count",
+       "fieldType": "hiddenField"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.formTrigger",
+   "typeVersion": 2.2,
+   "position": [
+    -592,
+    352
+   ],
+   "id": "form-trigger",
+   "name": "Procurement Request Form",
+   "webhookId": "fde-procurement-request",
+   "notesInFlow": true,
+   "notes": "FRONT DOOR 1 of 2. Reliable structured path; feeds the baseline from day 1.\nThe business_unit dropdown is GENERATED from the business_units table. Adding a BU means re-running the generator, not editing this node."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Normalize every intake channel to one purchase-requisition shape.\nconst f = $input.first().json;\nconst now = new Date().toISOString();\n\nconst norm = (v) => (v === undefined || v === null ? '' : String(v).trim());\n\n// request_id: deterministic on content + minute, so a same-minute resubmit collides for dedup.\nconst seed = [norm(f.business_unit), norm(f.sku), norm(f.quantity),\n              norm(f.requester_email), now.slice(0, 16)].join('|');\nlet h = 0;\nfor (let i = 0; i < seed.length; i++) { h = (h * 31 + seed.charCodeAt(i)) >>> 0; }\nconst request_id = 'PR-' + now.slice(0, 10).replace(/-/g, '') + '-' + h.toString(36).toUpperCase().padStart(7, '0');\n\nreturn [{ json: {\n  request_id,\n  intake_channel: norm(f.intake_channel) || 'form',\n  business_unit: norm(f.business_unit) || 'BU-01',\n  sku: norm(f.sku).toUpperCase(),\n  item_description: norm(f.item_description),\n  quantity: (() => {\n    // Throw on bad quantity; defaulting to 1 is a silent wrong order.\n    const q = Number(f.quantity);\n    if (!Number.isFinite(q) || q <= 0) {\n      throw new Error('Invalid quantity: ' + JSON.stringify(f.quantity) +\n                      ' (request ' + request_id + '). Refusing to default.');\n    }\n    return q;\n  })(),\n  category: norm(f.category) || 'MRO',\n  cost_center: norm(f.cost_center) || 'CC-4400',\n  preferred_vendor: norm(f.preferred_vendor),\n  justification: norm(f.justification),\n  requester_email: norm(f.requester_email),\n  revision_of: norm(f.revision_of),\n  revision_count: (() => { const c = Number(f.revision_count); return Number.isFinite(c) && c > 0 ? Math.floor(c) : 0; })(),\n  created_at: now,\n  state: 'RECEIVED',\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -64,
+    352
+   ],
+   "id": "normalize-request",
+   "name": "Normalize Request",
+   "notesInFlow": true,
+   "notes": "One hallway. Every front door converges here on ONE request object, so everything downstream sees one shape.\nMints request_id (deterministic on content + minute).\nTHROWS on an invalid quantity rather than defaulting. Inventing a value is a silent failure."
+  },
+  {
+   "parameters": {
+    "operation": "get",
+    "dataTableId": {
+     "__rl": true,
+     "value": "w8I8nRcAngNcFXqr",
+     "mode": "id"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "sku",
+       "keyValue": "={{ $('Normalize Request').first().json.sku }}"
+      },
+      {
+       "keyName": "category",
+       "keyValue": "={{ $('Normalize Request').first().json.category }}"
+      }
+     ]
+    },
+    "returnAll": true
+   },
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1296,
+    544
+   ],
+   "id": "vendor-catalog-lookup",
+   "name": "Vendor Catalog Lookup",
+   "alwaysOutputData": true,
+   "notesInFlow": true,
+   "notes": "READS: vendor_catalog, filtered on sku + category.\nSKU-level ASL: the rows are the vendors approved to supply THIS item.\nNo rows = no approved source. Handled, not an error."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Derive amount from vendor catalogs; pick cheapest source within the BU lead-time tolerance.\nconst req = $('Normalize Request').first().json;\nconst qty = Number(req.quantity) || 1;\n\n// BU lead-time tolerance, loaded before pricing.\nconst policy = $('Load BU Policy').first().json;\nconst maxLead = Number(policy.max_lead_time_days);\nconst hasTolerance = Number.isFinite(maxLead) && maxLead > 0;\n\nconst rows = $input.all().map(i => i.json).filter(r => r && r.sku && r.vendor_id);\n\nif (rows.length === 0) {\n  // No catalog match: route to sourcing, never auto-approve.\n  return [{ json: { ...req, catalog_match: false, match_count: 0,\n    derived_amount: null, state: 'NEEDS_SOURCING' }}];\n}\n\nconst priced = rows\n  .map(r => ({ ...r, unit_price: Number(r.unit_price), lead_time_days: Number(r.lead_time_days) }))\n  .filter(r => Number.isFinite(r.unit_price))\n  .sort((a, b) => a.unit_price - b.unit_price);\n\n// Keep only vendors that can deliver within tolerance.\nconst eligible = hasTolerance\n  ? priced.filter(r => Number.isFinite(r.lead_time_days) && r.lead_time_days <= maxLead)\n  : priced;\n\n// None in tolerance: take the fastest, flag a breach, force a human.\nconst breach = hasTolerance && eligible.length === 0;\nconst pool = breach\n  ? [...priced].sort((a, b) => a.lead_time_days - b.lead_time_days)\n  : eligible;\n\nconst best = pool[0];\nconst excluded = priced\n  .filter(r => !pool.includes(r))\n  .map(r => ({ vendor: r.vendor_name, price: r.unit_price, lead_time_days: r.lead_time_days }));\n\n// VEND-A is the incumbent; delta vs it is the contract-leakage number.\nconst incumbent = priced.find(r => r.vendor_id === 'VEND-A') || null;\nconst derived_amount = Number((best.unit_price * qty).toFixed(2));\nconst incumbent_amount = incumbent ? Number((incumbent.unit_price * qty).toFixed(2)) : null;\nconst savings = incumbent_amount !== null\n  ? Number((incumbent_amount - derived_amount).toFixed(2)) : 0;\n\n// Lead-time premium: cost of not taking the cheapest source.\nconst cheapest = priced[0];\nconst lead_time_premium = (best.vendor_id !== cheapest.vendor_id)\n  ? Number(((best.unit_price - cheapest.unit_price) * qty).toFixed(2)) : 0;\n\nconst maverick_flag = Boolean(req.preferred_vendor) && req.preferred_vendor !== best.vendor_id;\n\nreturn [{ json: { ...req,\n  catalog_match: true,\n  match_count: priced.length,\n  best_vendor_id: best.vendor_id,\n  best_vendor_name: best.vendor_name,\n  best_unit_price: best.unit_price,\n  contract_flag: best.contract_flag,\n  lead_time_days: best.lead_time_days,\n  max_lead_time_days: hasTolerance ? maxLead : null,\n  lead_time_breach: breach,\n  lead_time_premium,\n  excluded_on_lead_time: excluded,\n  currency: best.currency || 'EUR',\n  derived_amount,\n  incumbent_amount,\n  savings_vs_incumbent: savings,\n  maverick_flag,\n  alternatives: priced.map(p => ({\n    vendor: p.vendor_name, price: p.unit_price,\n    contract: p.contract_flag, lead_time_days: p.lead_time_days,\n  })),\n  state: 'PRICED',\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1488,
+    544
+   ],
+   "id": "best-price--maverick-flag",
+   "name": "Best Price + Maverick Flag",
+   "notesInFlow": true,
+   "notes": "The amount is DERIVED here, never asserted by the requester.\nRanks approved vendors by unit price, then applies the BU's max_lead_time_days: the cheapest source that can actually arrive in time wins.\nIf NOTHING meets tolerance: takes the fastest, sets lead_time_breach, forces a human.\nFlags maverick when the requester named a vendor that is not the best source."
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $json.catalog_match }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    1664,
+    544
+   ],
+   "id": "catalog-match-if",
+   "name": "Catalog Match?",
+   "notesInFlow": true,
+   "notes": "Priced -> ROUTE. No approved source -> sourcing event.\nA no-match is never an auto-approve and never a silent drop."
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "a1",
+       "name": "state",
+       "value": "NEEDS_SOURCING",
+       "type": "string"
+      },
+      {
+       "id": "a2",
+       "name": "stub_note",
+       "value": "ROADMAP: three-quote collection. Detection ships in the pilot; the sourcing event itself is spec'd, not built.",
+       "type": "string"
+      }
+     ]
+    },
+    "includeOtherFields": true,
+    "options": {}
+   },
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    1488,
+    784
+   ],
+   "id": "needs-sourcing-(rfq)",
+   "name": "Needs Sourcing (RFQ)",
+   "notesInFlow": true,
+   "notes": "Terminal for this pilot. Detection ships; three-quote collection is ROADMAP.\nStill writes a full event row and posts to #orders."
+  },
+  {
+   "parameters": {
+    "operation": "get",
+    "dataTableId": {
+     "__rl": true,
+     "value": "67HHfBJm7BXwEp8s",
+     "mode": "id"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "business_unit",
+       "keyValue": "={{ $('Normalize Request').first().json.business_unit }}"
+      },
+      {
+       "keyName": "category",
+       "keyValue": "={{ $('Normalize Request').first().json.category }}"
+      }
+     ]
+    },
+    "returnAll": true
+   },
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    688,
+    496
+   ],
+   "id": "doa-rule-lookup",
+   "name": "DoA Rule Lookup",
+   "alwaysOutputData": true,
+   "notesInFlow": true,
+   "notes": "READS: doa_rules, filtered on business_unit + category.\nReturns every threshold band for that BU. No rows is a legitimate state and it becomes a default-deny downstream, never a pass."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Route on DoA bands; self-check grades its own output. Deterministic, no LLM.\nconst req = $input.first().json;\nconst amount = Number(req.derived_amount);\n\nconst rules = $('DoA Rule Lookup').all().map(i => i.json).filter(r => r && r.business_unit && r.category);\nconst base = { ...req, evaluated_at: new Date().toISOString() };\n\n// Default-deny: no rule row for this BU/category.\nif (rules.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'no_rule_row_for_bu_category', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Default-deny: no vendor within lead-time tolerance.\nif (req.lead_time_breach) {\n  const r0 = rules[0];\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'lead_time_breach', approver: r0.approver_primary || null,\n    approver_fallback: r0.approver_fallback, escalation_hours: Number(r0.escalation_hours),\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\nconst bands = rules.filter(r =>\n  amount >= Number(r.threshold_min) && amount < Number(r.threshold_max));\n\n// Default-deny: amount outside every band.\nif (bands.length === 0) {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'amount_outside_all_bands', approver: null,\n    self_check: 'pass', state: 'AWAITING_APPROVAL' }}];\n}\n\n// Self-check: exactly one band must match; overlapping bands are a config error.\nconst self_check = bands.length === 1 ? 'pass' : 'FAIL_overlapping_bands';\nif (self_check !== 'pass') {\n  return [{ json: { ...base, route: 'default_deny',\n    route_reason: 'overlapping_rule_bands', matched_bands: bands.length,\n    approver: null, self_check, state: 'AWAITING_APPROVAL' }}];\n}\n\nconst band = bands[0];\nconst autoUnder = Number(band.auto_approve_under) || 0;\n\n// approval_mode is config, not code.\nlet route;\nif (autoUnder > 0 && amount < autoUnder) route = 'auto_approve';\nelse if (String(band.approval_mode).toLowerCase() === 'dual') route = 'dual_approver';\nelse route = 'single_approver';\n\nreturn [{ json: { ...base,\n  route, route_reason: 'matched_band',\n  band_min: Number(band.threshold_min), band_max: Number(band.threshold_max),\n  approval_mode: band.approval_mode,\n  approver: route === 'auto_approve' ? null : band.approver_primary,\n  approver_fallback: band.approver_fallback,\n  cost_owner: band.approver_primary,\n  escalation_hours: Number(band.escalation_hours),\n  auto_approve_under: autoUnder,\n  self_check,\n  state: route === 'auto_approve' ? 'APPROVED' : 'AWAITING_APPROVAL',\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -656,
+    1520
+   ],
+   "id": "threshold-eval--self-check",
+   "name": "Threshold Eval + Self-Check",
+   "notesInFlow": true,
+   "notes": "Deterministic. No LLM on this path, so the golden set is a TEST SUITE, not model eval.\nSelects the band by amount and reads approval_mode from the row: single vs dual is CONFIG, not code.\nDEFAULT-DENY on: no rule row, lead-time breach, amount outside all bands, overlapping bands.\nself_check asserts exactly one band claims the amount."
+  },
+  {
+   "parameters": {
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict",
+         "version": 2
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.route }}",
+          "rightValue": "auto_approve",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       }
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict",
+         "version": 2
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.route }}",
+          "rightValue": "single_approver",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       }
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict",
+         "version": 2
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.route }}",
+          "rightValue": "dual_approver",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       }
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict",
+         "version": 2
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.route }}",
+          "rightValue": "default_deny",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       }
+      }
+     ]
+    },
+    "options": {
+     "fallbackOutput": 3
+    }
+   },
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    -352,
+    1488
+   ],
+   "id": "route-switch",
+   "name": "Route Decision",
+   "notesInFlow": true,
+   "notes": "Four outputs: auto-approve / single / dual / DEFAULT-DENY.\nFallback output is default-deny by design. An unrecognised route must reach a human."
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "a1",
+       "name": "state",
+       "value": "APPROVED",
+       "type": "string"
+      },
+      {
+       "id": "a2",
+       "name": "stub_note",
+       "value": "Under the configured auto_approve_under ceiling. Still writes a full event trail.",
+       "type": "string"
+      }
+     ]
+    },
+    "includeOtherFields": true,
+    "options": {}
+   },
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    240,
+    1440
+   ],
+   "id": "auto-approved",
+   "name": "Auto-Approved",
+   "notesInFlow": true,
+   "notes": "Under the BU's configured auto_approve_under ceiling.\nStill writes a full event trail and still posts an outcome. Auto does not mean invisible."
+  },
+  {
+   "parameters": {
+    "jsCode": "// RECORD: one row per request at its terminal state (audit + cycle-time instrument).\nconst j = $input.first().json;\nconst now = new Date().toISOString();\nconst submitted_at = j.created_at || null;\n// Human-gated paths carry decided_at; auto-decided/terminal states decide at record time.\nconst decided_at = j.decided_at || now;\nconst cycle_seconds = submitted_at\n  ? Math.max(0, Math.round((new Date(decided_at) - new Date(submitted_at)) / 1000))\n  : null;\nreturn [{ json: {\n  request_id: j.request_id || 'UNKNOWN',\n  event: j.state || 'UNKNOWN',\n  detail: JSON.stringify({\n    route: j.route || null,\n    route_reason: j.route_reason || null,\n    self_check: j.self_check || null,\n    derived_amount: j.derived_amount ?? null,\n    currency: j.currency || 'EUR',\n    best_vendor: j.best_vendor_name || null,\n    savings_vs_incumbent: j.savings_vs_incumbent ?? null,\n    maverick_flag: j.maverick_flag ?? null,\n    catalog_match: j.catalog_match ?? null,\n    approver: j.approver || null,\n    reject_reason: j.reject_reason || null,\n  }),\n  actor: j.requester_email || 'system',\n  ts: now,\n  submitted_at,\n  decided_at,\n  cycle_seconds,\n  revision_of: j.revision_of || null,\n  revision_count: j.revision_count ?? 0,\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1504,
+    1520
+   ],
+   "id": "build-event-row",
+   "name": "Build Event Row",
+   "notesInFlow": true,
+   "notes": "One row per state transition. This table IS the instrument."
+  },
+  {
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "value": "WAfXQqVAdlo8Bruh",
+     "mode": "id"
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": []
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1792,
+    1536
+   ],
+   "id": "events-insert",
+   "name": "Write Event Row",
+   "notesInFlow": true,
+   "notes": "WRITES: pr_events.\nCycle time, stall rate, off-contract rate and rule drift are all queries against this table. A dashboard is roadmap; the table is the deliverable."
+  },
+  {
+   "parameters": {
+    "options": {
+     "customEmailConfig": "[\"UNSEEN\"]"
+    }
+   },
+   "type": "n8n-nodes-base.emailReadImap",
+   "typeVersion": 2,
+   "position": [
+    -592,
+    528
+   ],
+   "id": "email-trigger",
+   "name": "Procurement Mailbox (IMAP)",
+   "notesInFlow": true,
+   "disabled": true,
+   "notes": "FRONT DOOR 2 of 2. Disabled until a mailbox credential is wired.\nIMAP not Gmail: no public OAuth redirect on this box, and the customer is a connector swap anyway."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Deterministic regex parse of a templated procurement email. No LLM (extraction is roadmap).\n\nconst m = $input.first().json;\n\nconst subject = String(m.subject || '');\nconst from = String(m.from || m.fromEmail || '');\nlet body = String(m.text || m.textPlain || m.snippet || '');\n\n// Cut quoted reply history so a forwarded thread can't yield stale values.\nconst cut = body.search(/^\\s*(>|On .+wrote:|-----Original Message-----|_{5,}|From:\\s)/m);\nif (cut > 0) body = body.slice(0, cut);\n\n// Accept \"Key: value\" lines, case-insensitive, with common label variants.\nconst ALIASES = {\n  business_unit: ['business unit', 'business_unit', 'bu'],\n  sku:           ['sku', 'part number', 'part no', 'material', 'item number'],\n  item_description: ['description', 'item', 'item description'],\n  quantity:      ['quantity', 'qty'],\n  category:      ['category'],\n  cost_center:   ['cost center', 'cost centre', 'cost_center', 'cc'],\n  preferred_vendor: ['preferred vendor', 'vendor', 'supplier'],\n  justification: ['justification', 'reason', 'notes'],\n  requester_email: ['requester email', 'requester', 'requested by'],\n};\n\nconst found = {};\nfor (const raw of body.split(/\\r?\\n/)) {\n  const mm = raw.match(/^\\s*\\*?\\s*([A-Za-z _\\/-]{2,30}?)\\s*\\*?\\s*[:\\-]\\s*(.+?)\\s*$/);\n  if (!mm) continue;\n  const label = mm[1].trim().toLowerCase();\n  const value = mm[2].trim();\n  for (const [field, names] of Object.entries(ALIASES)) {\n    if (names.includes(label) && !(field in found)) { found[field] = value; break; }\n  }\n}\n\n// Sender is the requester unless the template overrides.\nconst senderMatch = from.match(/[\\w.+-]+@[\\w.-]+\\.\\w+/);\nif (!found.requester_email && senderMatch) found.requester_email = senderMatch[0];\n\n// Parseable only if the fields the pipeline can't invent are present.\nconst REQUIRED = ['business_unit', 'sku', 'quantity'];\nconst missing = REQUIRED.filter(f => !found[f] || String(found[f]).trim() === '');\n// \"two boxes\" strips to \"\" and Number(\"\") is 0: require non-empty and > 0.\nconst qtyRaw = String(found.quantity || '').replace(/[^\\d.]/g, '');\nconst qtyNum = qtyRaw === '' ? NaN : Number(qtyRaw);\nconst qtyValid = Number.isFinite(qtyNum) && qtyNum > 0;\nif (!missing.includes('quantity') && !qtyValid) missing.push('quantity');\n\nreturn [{ json: {\n  ...found,\n  quantity: qtyValid ? qtyNum : null,\n  category: found.category || 'MRO',\n  intake_channel: 'email',\n  parse_ok: missing.length === 0,\n  parse_missing: missing,\n  source_subject: subject,\n  source_from: from,\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -64,
+    528
+   ],
+   "id": "parse-email",
+   "name": "Parse Request Email",
+   "notesInFlow": true,
+   "notes": "DETERMINISTIC parse, no LLM. At this company size the request mail is already a template, so it is a regex problem.\nHandles label aliases and cuts quoted/forwarded history so a reply thread cannot inject a stale SKU.\nWhether the mail is templated is a DISCOVERY finding, not an assumption."
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "p1",
+       "leftValue": "={{ $json.parse_ok }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    224,
+    528
+   ],
+   "id": "parse-ok-if",
+   "name": "Parse OK?",
+   "notesInFlow": true,
+   "notes": "Requires business_unit + sku + a positive numeric quantity.\nAnything short of that bounces. It never routes on a guess."
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "b1",
+       "name": "state",
+       "value": "BOUNCED_TO_REQUESTER",
+       "type": "string"
+      },
+      {
+       "id": "b2",
+       "name": "stub_note",
+       "value": "Non-conforming mail. Reply with a prefilled form link rather than guessing. Cheap, and it cannot be wrong. LLM extraction is the roadmap item, justified only if the mailbox sample shows a tail big enough to matter.",
+       "type": "string"
+      }
+     ]
+    },
+    "includeOtherFields": true,
+    "options": {}
+   },
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    96,
+    768
+   ],
+   "id": "bounce-back",
+   "name": "Bounce Back (form link)",
+   "notesInFlow": true,
+   "notes": "Reply with a prefilled form link. Cheap, and it cannot be wrong.\nLLM extraction stays roadmap, justified only if the mailbox sample shows a non-conforming tail big enough to matter."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Post to #requests: requisition received and priced. Separate channel/audience from #approvals.\nconst j = $input.first().json;\nconst money = (n) => (n === null || n === undefined) ? 'n/a'\n  : (j.currency || 'EUR') + ' ' + Number(n).toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});\nreturn [{ json: { ...j, slack_payload: {\n  text: 'New requisition ' + j.request_id,\n  blocks: [\n    {type: 'section', text: {type: 'mrkdwn',\n      text: '*New requisition* `' + j.request_id + '`\\n' + j.sku +\n            (j.item_description ? ' - ' + j.item_description : '') + '  \u00c3\u2014' + j.quantity}},\n    {type: 'context', elements: [{type: 'mrkdwn',\n      text: j.business_unit + '  |  ' + money(j.derived_amount) + ' via ' + (j.best_vendor_name || 'n/a') +\n            '  |  raised by ' + (j.requester_email || 'unknown') + ' (' + (j.intake_channel || 'form') + ')'}]},\n  ]}}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -656,
+    1728
+   ],
+   "id": "notify-requests-build",
+   "name": "Notify #requests",
+   "notesInFlow": true,
+   "notes": "Side branch, NOT a pipeline stage. A notification must never sit between two steps that pass data, or the next step receives an HTTP response instead of the request."
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.REQUESTS_SLACK_WEBHOOK }}",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -144,
+    1728
+   ],
+   "id": "notify-requests-post",
+   "name": "Post to #requests",
+   "notesInFlow": true,
+   "onError": "continueRegularOutput",
+   "notes": "Webhook URL from the container env (fed from the secret store). Nothing secret is stored in this workflow, so an export leaks nothing.\nTerminal branch."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Build the Slack approval card and both decision links (same resume URL, different decision).\nconst j = $input.first().json;\nconst resume = $execution.resumeUrl;\n\nconst money = (n) => (n === null || n === undefined)\n  ? 'n/a'\n  : (j.currency || 'EUR') + ' ' + Number(n).toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});\n\n// resumeUrl already carries ?signature=; join with & or the resume 401s.\nconst join = (u, kv) => u + (u.includes('?') ? '&' : '?') + kv;\nconst approveUrl = join(resume, 'decision=approve');\n// Reject routes through the Revision Loop reason form; it POSTs decision+reason back to this resume URL.\nconst REVLOOP_REJECT_FORM = 'https://your-n8n.example/webhook/fde-reject-form';\nconst rejectResume = join(resume, 'decision=reject');\nconst rejectUrl = REVLOOP_REJECT_FORM + '?resume=' + encodeURIComponent(rejectResume) + '&rid=' + encodeURIComponent(j.request_id);\n\nconst alts = Array.isArray(j.alternatives) ? j.alternatives : [];\nconst altLines = alts.slice(0, 4)\n  .map(a => '\u00e2\u20ac\u00a2 ' + a.vendor + '  ' + money(a.price) + '  _' + a.contract + '_')\n  .join('\\n') || '_no alternatives_';\n\nconst flags = [];\nif (j.maverick_flag) flags.push(':warning: *Off-contract request* - requester named ' + (j.preferred_vendor || 'another vendor') + ', not the best contracted source');\nif (j.route === 'default_deny') flags.push(':no_entry: *Default-deny* - ' + (j.route_reason || 'no matching rule') + '. This did NOT auto-approve.');\nif (j.route === 'dual_approver') flags.push(':busts_in_silhouette: *Dual approval* - this is gate 1 of 2');\n\nconst blocks = [\n  {type: 'header', text: {type: 'plain_text', text: 'Purchase requisition ' + j.request_id}},\n  {type: 'section', fields: [\n    {type: 'mrkdwn', text: '*Business unit*\\n' + j.business_unit},\n    {type: 'mrkdwn', text: '*Cost center*\\n' + (j.cost_center || 'n/a')},\n    {type: 'mrkdwn', text: '*Item*\\n' + j.sku + (j.item_description ? ' - ' + j.item_description : '')},\n    {type: 'mrkdwn', text: '*Quantity*\\n' + j.quantity},\n    {type: 'mrkdwn', text: '*Amount (derived)*\\n' + money(j.derived_amount)},\n    {type: 'mrkdwn', text: '*Best source*\\n' + (j.best_vendor_name || 'n/a')},\n  ]},\n  {type: 'section', text: {type: 'mrkdwn',\n    text: '*Savings vs incumbent:* ' + money(j.savings_vs_incumbent) +\n          '\\n*Lead time:* ' + (j.lead_time_days ?? 'n/a') + ' days   *Pricing:* ' + (j.contract_flag || 'n/a')}},\n  {type: 'section', text: {type: 'mrkdwn', text: '*Priced against*\\n' + altLines}},\n];\nif (flags.length) blocks.push({type: 'section', text: {type: 'mrkdwn', text: flags.join('\\n')}});\nblocks.push({type: 'context', elements: [{type: 'mrkdwn',\n  text: 'Requested by ' + (j.requester_email || 'unknown') + ' via ' + (j.intake_channel || 'form') +\n        '  |  routes to ' + (j.approver || 'a human') + '  |  escalates in ' + (j.escalation_hours ?? 24) + 'h'}]});\nblocks.push({type: 'actions', elements: [\n  {type: 'button', style: 'primary', text: {type: 'plain_text', text: 'Approve'}, url: approveUrl},\n  {type: 'button', style: 'danger',  text: {type: 'plain_text', text: 'Reject'},  url: rejectUrl},\n]});\n\nreturn [{ json: { ...j,\n  slack_payload: {\n    text: 'Approval needed: ' + j.request_id + ' ' + money(j.derived_amount),\n    blocks,\n  },\n  approve_url: approveUrl,\n  reject_url: rejectUrl,\n  awaiting_since: new Date().toISOString(),\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    272,
+    1600
+   ],
+   "id": "build-approval-card",
+   "name": "Build Approval Card",
+   "notesInFlow": true,
+   "notes": "Builds the Slack card and BOTH decision links from this execution's Wait resume URL.\nn8n already signs that URL, so the links are joined with & (a second ? swallows the signature and the resume 401s).\nSame link works from email: the approval is state-shaped, not Slack-shaped."
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.APPROVALS_SLACK_WEBHOOK }}",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    464,
+    1600
+   ],
+   "id": "post-approvals",
+   "name": "Post to #approvals",
+   "notesInFlow": true,
+   "onError": "continueRegularOutput",
+   "notes": "#approvals holds ONLY undecided items, so it stays a work queue. Outcomes go to #orders.\nWebhook URL from container env."
+  },
+  {
+   "parameters": {
+    "resume": "webhook",
+    "limitWaitTime": true,
+    "resumeAmount": "={{ $json.escalation_hours || 24 }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.wait",
+   "typeVersion": 1.1,
+   "position": [
+    688,
+    1600
+   ],
+   "id": "wait-decision",
+   "name": "Wait for Decision",
+   "webhookId": "pr-decision",
+   "notesInFlow": true,
+   "notes": "Resumes on the decision link, or times out after the BU's escalation_hours.\nA timeout carries NO decision, which IS the escalation signal.\nState survives restarts because it is a row, not a variable in a running process."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Resume from Slack button, email link, or Wait timeout. Timeout = no decision = escalate.\nconst prior = $('Build Approval Card').first().json;\n\n// Webhook resume exposes the caller's query; timeout has none.\nconst first = $input.first().json || {};\nconst q = first.query || (first.body && first.body.query) || {};\nconst decision = String(q.decision || '').toLowerCase();\n\nconst base = { ...prior, decided_at: new Date().toISOString() };\n\nif (decision === 'approve') {\n  return [{ json: { ...base, decision: 'approved', decided_by: prior.approver || 'approver',\n                    state: prior.route === 'dual_approver' ? 'GATE1_APPROVED' : 'APPROVED' }}];\n}\nif (decision === 'reject') {\n  const reason = String(q.reason || (first.body && first.body.reason) || '').trim();\n  return [{ json: { ...base, decision: 'rejected', decided_by: prior.approver || 'approver',\n                    reject_reason: reason || 'No reason given', state: 'REJECTED' }}];\n}\n\n// No decision: wait elapsed, escalate to configured fallback.\nreturn [{ json: { ...base, decision: 'timed_out', decided_by: null,\n                  escalated_to: prior.approver_fallback || null,\n                  state: 'ESCALATED' }}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    912,
+    1600
+   ],
+   "id": "apply-decision",
+   "name": "Apply Decision",
+   "notesInFlow": true,
+   "notes": "approve / reject / timeout -> escalate to approver_fallback.\nThe fallback approver comes from the rules table. Data, not a code change."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Build the #orders post for every terminal state (approved/rejected/escalated/needs-sourcing).\nconst j = $input.first().json;\n\nconst money = (n) => (n === null || n === undefined) ? 'n/a'\n  : (j.currency || 'EUR') + ' ' + Number(n).toLocaleString('de-DE',\n      {minimumFractionDigits: 2, maximumFractionDigits: 2});\n\n// Time-to-decision: capture now, while both timestamps exist.\nlet elapsed = null;\nif (j.awaiting_since && j.decided_at) {\n  const ms = new Date(j.decided_at) - new Date(j.awaiting_since);\n  if (Number.isFinite(ms) && ms >= 0) {\n    const mins = Math.round(ms / 60000);\n    elapsed = mins < 60 ? mins + ' min'\n            : (mins < 1440 ? (mins / 60).toFixed(1) + ' h' : (mins / 1440).toFixed(1) + ' days');\n  }\n}\n\nconst state = String(j.state || '').toUpperCase();\nconst MAP = {\n  APPROVED:        [':white_check_mark:', 'Approved'],\n  GATE1_APPROVED:  [':white_check_mark:', 'Approved at gate 1 of 2'],\n  REJECTED:        [':x:', 'Rejected'],\n  ESCALATED:       [':alarm_clock:', 'Escalated, no decision in time'],\n  NEEDS_SOURCING:  [':mag:', 'No catalog match, sourcing required'],\n};\nconst [icon, label] = MAP[state] || [':grey_question:', state || 'Unknown'];\n\nconst lines = [];\nlines.push(icon + ' *' + label + '* - `' + j.request_id + '`');\nlines.push('*' + (j.sku || 'n/a') + '*' + (j.item_description ? ' - ' + j.item_description : '') +\n           '  \u00c3\u2014' + (j.quantity ?? 'n/a'));\n\nif (state === 'NEEDS_SOURCING') {\n  lines.push('_No approved vendor lists this item. Routed for RFQ / three quotes rather than auto-approved._');\n} else {\n  lines.push(money(j.derived_amount) + ' via *' + (j.best_vendor_name || 'n/a') + '*' +\n             (j.savings_vs_incumbent ? '  (' + money(j.savings_vs_incumbent) + ' under the incumbent contract price)' : ''));\n}\nif (j.maverick_flag) {\n  lines.push(':warning: Off-contract request corrected at intake - requester named ' +\n             (j.preferred_vendor || 'another vendor') + '.');\n}\nif (state === 'ESCALATED') {\n  lines.push(':arrow_right: Escalated to *' + (j.escalated_to || 'fallback approver') +\n             '* after ' + (j.escalation_hours ?? 24) + 'h with no decision.');\n}\nif (j.route === 'default_deny') {\n  lines.push(':no_entry: Reached a human by *default-deny* (' + (j.route_reason || 'no matching rule') +\n             '). It did not auto-approve.');\n}\n\nconst ctx = [];\nctx.push(j.business_unit + (j.cost_center ? ' / ' + j.cost_center : ''));\nctx.push('raised by ' + (j.requester_email || 'unknown') + ' via ' + (j.intake_channel || 'form'));\nif (j.decided_by) ctx.push('decided by ' + j.decided_by);\nif (elapsed) ctx.push('time to decision ' + elapsed);\n\n// No PO number invented; the ERP owns that sequence (write-back is roadmap).\nconst poLine = (state === 'APPROVED' || state === 'GATE1_APPROVED')\n  ? '_Ready for PO creation. ERP write-back is roadmap, so the purchase order number still comes from your ERP. Internal reference `' + j.request_id + '`._'\n  : null;\n\nconst blocks = [\n  {type: 'section', text: {type: 'mrkdwn', text: lines.join('\\n')}},\n];\nif (poLine) blocks.push({type: 'section', text: {type: 'mrkdwn', text: poLine}});\nblocks.push({type: 'context', elements: [{type: 'mrkdwn', text: ctx.join('  |  ')}]});\n\nreturn [{ json: { ...j,\n  time_to_decision: elapsed,\n  slack_payload: { text: label + ': ' + j.request_id, blocks },\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1248,
+    1520
+   ],
+   "id": "build-outcome",
+   "name": "Build Outcome",
+   "notesInFlow": true,
+   "notes": "Every terminal state posts an outcome: approved, rejected, escalated, no-match.\nA good-news-only channel is not an audit trail.\nComputes time-to-decision, which is the number the 90-day value story is built on.\nDoes NOT mint a PO number: the ERP owns that sequence, and a number that exists only here is a reconciliation problem handed to the customer."
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.ORDERS_SLACK_WEBHOOK }}",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    976,
+    1792
+   ],
+   "id": "post-orders",
+   "name": "Post to #orders",
+   "notesInFlow": true,
+   "onError": "continueRegularOutput",
+   "notes": "Side branch, terminal. Webhook URL from container env."
+  },
+  {
+   "parameters": {
+    "jsCode": "// Collapse the BU's rule rows to ONE item (req + policy) so pricing doesn't fan out.\nconst req = $('Normalize Request').first().json;\nconst rules = $input.all().map(i => i.json).filter(r => r && r.business_unit);\n\n// max_lead_time_days is per BU+category; take the strictest if rows disagree.\nconst leads = rules.map(r => Number(r.max_lead_time_days)).filter(n => Number.isFinite(n) && n > 0);\nconst maxLead = leads.length ? Math.min(...leads) : null;\n\nreturn [{ json: { ...req,\n  policy_rule_count: rules.length,\n  max_lead_time_days: maxLead,\n  has_policy: rules.length > 0,\n}}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    912,
+    496
+   ],
+   "id": "load-policy",
+   "name": "Load BU Policy",
+   "notesInFlow": true,
+   "notes": "Collapses the BU's rule rows into ONE item carrying the request + its policy.\nNOT cosmetic: a Data Table lookup runs once per INPUT item, so letting 3 band rows through fans the catalog lookup out into 3 duplicate copies of every vendor.\nTakes the STRICTEST max_lead_time_days if bands ever disagree."
+  },
+  {
+   "parameters": {
+    "content": "# FieldOps Co. \u00e2\u20ac\u201d Procure-to-Approve  (pilot: BU-01, MRO)\n**One workflow. The business units differ in their CONFIG ROWS, not in their shape.**\n\n`INTAKE \u00e2\u2020\u2019 POLICY \u00e2\u2020\u2019 PRICE \u00e2\u2020\u2019 ROUTE \u00e2\u2020\u2019 APPROVE \u00e2\u2020\u2019 RECORD`\n\nLoad the BU's policy, price within it, route on the derived amount, gate it with a human, record every transition.\n\nCanvas = what this is and what each part's contract is. The maintainer doc = why it is shaped this way. Values live in neither: they are in the config tables.",
+    "height": 320,
+    "width": 2704,
+    "color": 7
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -688,
+    -384
+   ],
+   "id": "sticky-title",
+   "name": "Sticky title"
+  },
+  {
+   "parameters": {
+    "content": "## [1. INTAKE](https://your-runbook.example/#zone-intake)\n**Multiple front doors, one hallway.**\n\nIN: a form submission or an email.\nOUT: one normalized request object with a request_id.\nREADS: [business_units](https://your-runbook.example/#business_units-the-bu-registry) (for the dropdown).\n\n**Form** is the reliable structured path and feeds the baseline from day 1.\n**Email** meets people where they already are, parsed deterministically. Non-conforming mail bounces back with a form link; it never routes on a guess.\n\nON FAILURE: an invalid quantity THROWS rather than defaulting to 1. Inventing a value is a silent failure that reaches a purchase order.",
+    "height": 1056,
+    "width": 1216,
+    "color": 4
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -688,
+    -48
+   ],
+   "id": "sticky-intake",
+   "name": "Sticky intake"
+  },
+  {
+   "parameters": {
+    "content": "## [2. POLICY](https://your-runbook.example/#zone-policy)\n**Load the BU's rules before pricing.**\n\nIN: normalized request.\nOUT: request + that BU's policy, as ONE item.\nREADS: [doa_rules](https://your-runbook.example/#doa_rules-the-policy-master) on business_unit + category.\n\nPricing has to happen INSIDE the policy, because the lead-time tolerance decides which vendors are even eligible.\n\nON FAILURE: no rule rows is legitimate (a BU can exist with no policy yet). It becomes an explicit default-deny in ROUTE, never a pass.",
+    "height": 1056,
+    "width": 624,
+    "color": 3
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    544,
+    -48
+   ],
+   "id": "sticky-policy",
+   "name": "Sticky policy"
+  },
+  {
+   "parameters": {
+    "content": "## [3. PRICE](https://your-runbook.example/#zone-price)\n**The amount is DERIVED, never asserted.**\n\nIN: request + policy.\nOUT: best source, derived amount, savings vs incumbent, flags.\nREADS: [vendor_catalog](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) on sku + category (SKU-level ASL).\n\nRanks approved vendors by unit price, then applies the BU's `max_lead_time_days`. The cheapest source that can actually arrive in time wins, and the premium paid for speed is reported rather than hidden.\n\nON FAILURE:\n\u00e2\u20ac\u00a2 no approved source \u00e2\u2020\u2019 sourcing event, never an auto-approve\n\u00e2\u20ac\u00a2 nothing inside tolerance \u00e2\u2020\u2019 fastest available, flagged, forced to a human",
+    "height": 1056,
+    "width": 832,
+    "color": 6
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    1184,
+    -48
+   ],
+   "id": "sticky-price",
+   "name": "Sticky price"
+  },
+  {
+   "parameters": {
+    "content": "## [4. ROUTE](https://your-runbook.example/#zone-route)\n**The DoA matrix IS the routing engine.**\n\nIN: priced request.\nOUT: one of auto-approve / single / dual / default-deny.\nREADS: the policy already loaded in step 2.\n\nDeterministic, and it grades its own output. 8 BUs differ in thresholds and approvers, not in shape: one workflow, N config rows.\n\n**DEFAULT-DENY on:** missing rule row, lead-time breach, amount outside all bands, overlapping bands, unrecognised route.\nA missing config row must NEVER auto-approve.",
+    "height": 912,
+    "width": 848,
+    "color": 5
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -688,
+    1024
+   ],
+   "id": "sticky-route",
+   "name": "Sticky route"
+  },
+  {
+   "parameters": {
+    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason), not in shape, so they share one gate.\n\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email, so **the approval is state-shaped, not Slack-shaped**. If Slack is down the timer still fires.\n\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.",
+    "height": 912,
+    "width": 944,
+    "color": 4
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    176,
+    1024
+   ],
+   "id": "sticky-approve",
+   "name": "Sticky approve"
+  },
+  {
+   "parameters": {
+    "content": "## [6. RECORD + CLOSE](https://your-runbook.example/#zone-record)\n**The instrument is a table, not a dashboard.**\n\nIN: any terminal state.\nOUT: one row per transition, plus an outcome post.\nWRITES: [pr_events](https://your-runbook.example/#pr_events-the-audit-log).  POSTS: #orders.\n\nCycle time, stall rate, off-contract rate and rule drift are all queries against this table. A dashboard is roadmap.\n\nEvery terminal state posts, including rejections and escalations. A good-news-only channel is not an audit trail.\n\n**No PO number is invented here.** The ERP owns that sequence.",
+    "height": 912,
+    "width": 880,
+    "color": 5
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    1136,
+    1024
+   ],
+   "id": "sticky-record",
+   "name": "Sticky record"
+  },
+  {
+   "parameters": {
+    "content": "## [RUNBOOK \u00e2\u20ac\u201d onboard a business unit](https://your-runbook.example/#onboard-a-business-unit)\n*You should not need to open a single node to do this.*\n\n**1.** Add the BU to the **[business_units](https://your-runbook.example/#business_units-the-bu-registry)** table (`code`, `name`, `active`).\n\n**2.** Add its rows to **[doa_rules](https://your-runbook.example/#doa_rules-the-policy-master)**, one per threshold band:\n`business_unit, category, threshold_min, threshold_max, approver_primary, approver_fallback, approval_mode, escalation_hours, auto_approve_under, max_lead_time_days, cost_center`\n\n**3.** Run the golden set. If it passes, that BU is live.\n\nBands must not overlap: the evaluator asserts exactly one band claims an amount and default-denies if more than one does.\n\nA BU with no rows is safe. Every request from it default-denies to a human until somebody writes the policy. That is deliberate.",
+    "height": 624,
+    "width": 912,
+    "color": 7
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    2144,
+    -368
+   ],
+   "id": "sticky-runbook-bu",
+   "name": "Sticky runbook-bu"
+  },
+  {
+   "parameters": {
+    "content": "## [CONFIGURATION](https://your-runbook.example/#config-tables-change-these-not-the-canvas)\n*Four tables. Everything that changes weekly is in one of them, and none of it is on this canvas.*\n\n**[doa_rules](https://your-runbook.example/#doa_rules-the-policy-master)** \u00e2\u20ac\u201d thresholds, approvers, escalation windows, approval mode, lead-time tolerance. The routing engine.\n\n**[vendor_catalog](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list)** \u00e2\u20ac\u201d the hosted vendor catalogs. SKU-level ASL: which vendors are approved for which item, at what price and lead time.\n\n**[business_units](https://your-runbook.example/#business_units-the-bu-registry)** \u00e2\u20ac\u201d the BU master. Separate from the rules on purpose: a BU can exist before anyone has written its policy.\n\n**[pr_events](https://your-runbook.example/#pr_events-the-audit-log)** \u00e2\u20ac\u201d every state transition. Read-only in practice; this is the measurement instrument.\n\nChanging an approver or a threshold is a ROW EDIT, not a deploy. Nobody has to open n8n.",
+    "height": 624,
+    "width": 912,
+    "color": 7
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    2144,
+    272
+   ],
+   "id": "sticky-runbook-config",
+   "name": "Sticky runbook-config"
+  },
+  {
+   "parameters": {
+    "content": "## [TROUBLESHOOTING](https://your-runbook.example/#troubleshooting)\n\n**Everything from one BU is denying.** It has no rows in [doa_rules](https://your-runbook.example/#doa_rules-the-policy-master), or its bands overlap. Check `route_reason` on the event row.\n\n**A request took an unexpected vendor.** Check `max_lead_time_days` for that BU: the cheapest source may not meet its tolerance. `lead_time_premium` shows what the tolerance cost.\n\n**An approval link says invalid token.** Resume URLs are single-use and die once actioned. Expected behaviour, not a fault.\n\n**Nothing arrived in Slack.** The webhook URLs come from the container env. Check they are present before suspecting the workflow.\n\n**It is 2am and it is broken.** Find the request_id in [pr_events](https://your-runbook.example/#pr_events-the-audit-log), read the last transition, and the failure is in the next step. Nothing is lost, because state is a row and not a variable in a running process.",
+    "height": 624,
+    "width": 912,
+    "color": 7
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    2144,
+    912
+   ],
+   "id": "sticky-runbook-break",
+   "name": "Sticky runbook-break"
+  },
+  {
+   "parameters": {
+    "content": "## [FAILURE MODES](https://your-runbook.example/#failure-modes)\n*The failure mode this workflow is built to refuse.*\n\nA run can be green and still be wrong. Four places that is defended:\n\n**1.** A missing rule row default-denies instead of passing.\n**2.** A low-confidence email parse bounces instead of routing.\n**3.** The threshold evaluator grades its own output (`self_check`).\n**4.** An unmeetable lead time is flagged, not quietly ignored.\n\n**The weekly query that matters:** requests that entered and never terminated. n8n will show you green executions. Green is not the same as done.\n\nThe golden set is the artifact that keeps this true after a config change. Run it after every rule edit.",
+    "height": 624,
+    "width": 912,
+    "color": 7
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    2144,
+    1552
+   ],
+   "id": "sticky-runbook-green",
+   "name": "Sticky runbook-green"
+  },
+  {
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ $('Normalize Request').item.json.requester_email }}",
+    "subject": "=Requisition received - {{ $('Normalize Request').item.json.request_id }}",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your procurement request <strong>{{ $('Normalize Request').item.json.request_id }}</strong> has been received and priced.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Quantity</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.quantity }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Business unit</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.business_unit }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Priced at</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr></table><p>You will get another note when it is approved, or if it needs a human decision.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    336,
+    2160
+   ],
+   "id": "428a8184-468a-426e-833f-2b3187b8b703",
+   "name": "Email Notification Request",
+   "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ $('Build Approval Card').item.json.approver }}",
+    "subject": "=Approval needed - {{ $('Build Approval Card').item.json.request_id }} ({{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.derived_amount }})",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>A procurement request needs your approval.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Request</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.request_id }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.sku }} - {{ $('Build Approval Card').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.derived_amount }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Best source</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.best_vendor_name }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Saving vs incumbent</td><td style=\"padding:2px 0\"><strong>{{ $('Build Approval Card').item.json.currency }} {{ $('Build Approval Card').item.json.savings_vs_incumbent }}</strong></td></tr></table><p style=\"margin:16px 0\"><a href=\"{{ $('Build Approval Card').item.json.approve_url }}\" style=\"background:#1a7f37;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none;margin-right:8px\">Approve</a><a href=\"{{ $('Build Approval Card').item.json.reject_url }}\" style=\"background:#cf222e;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none\">Reject</a></p><p style=\"color:#666;font-size:12px\">These links are single-use and expire once actioned. The same decision can be made from Slack.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    544,
+    2160
+   ],
+   "id": "e6346380-cf0e-47d8-9697-fbc8c7c33633",
+   "name": "Email Notification Awaiting Approval",
+   "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ [$json.requester_email, $json.cost_owner].filter(Boolean).join(',') }}",
+    "subject": "=Auto-approved - {{ $('Normalize Request').item.json.request_id }}",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $('Normalize Request').item.json.request_id }}</strong> was <strong>auto-approved</strong>, under the configured approval ceiling for its business unit.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Quantity</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.quantity }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr></table><p>No further action is needed. It is ready for PO creation in your ERP.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    768,
+    2160
+   ],
+   "id": "72d521cd-f3cd-4b36-8763-b0def93a23dc",
+   "name": "Email Notification Auto Approval",
+   "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ $('Normalize Request').item.json.requester_email }}",
+    "subject": "=Approved, ready for PO - {{ $('Build Outcome').item.json.request_id }}",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $('Build Outcome').item.json.request_id }}</strong> has been <strong>approved</strong>{{ $('Build Outcome').item.json.decided_by ? ' by ' + $('Build Outcome').item.json.decided_by : '' }}.</p><table style=\"border-collapse:collapse\"><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Item</td><td style=\"padding:2px 0\"><strong>{{ $('Normalize Request').item.json.sku }} - {{ $('Normalize Request').item.json.item_description }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Amount</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.derived_amount }} via {{ $('Best Price + Maverick Flag').item.json.best_vendor_name }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Saving vs incumbent</td><td style=\"padding:2px 0\"><strong>{{ $('Best Price + Maverick Flag').item.json.currency }} {{ $('Best Price + Maverick Flag').item.json.savings_vs_incumbent }}</strong></td></tr><tr><td style=\"padding:2px 10px 2px 0;color:#666\">Time to decision</td><td style=\"padding:2px 0\"><strong>{{ $('Build Outcome').item.json.time_to_decision || 'n/a' }}</strong></td></tr></table><p>Ready for PO creation. The purchase order number comes from your ERP; internal reference is {{ $('Build Outcome').item.json.request_id }}.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    992,
+    2160
+   ],
+   "id": "905066be-6866-4170-bc06-33688bcc7571",
+   "name": "Email Notification Order Approved",
+   "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ $json.requester_email || $json.from_email || $json.from || '' }}",
+    "subject": "Your procurement request could not be read automatically",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>We received your procurement email but could not read it automatically, so nothing has been ordered.</p><p>Please resubmit using the request form, which validates the fields as you go:</p><p style=\"margin:16px 0\"><a href=\"https://your-n8n.example/form/fde-procurement-request\" style=\"background:#0969da;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none\">Open the request form</a></p><p style=\"color:#666;font-size:12px\">This keeps a bad parse from turning into a wrong order.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    112,
+    2160
+   ],
+   "id": "533f7ea7-677d-4298-b0e9-b9d2f03d62aa",
+   "name": "Bounce Back Email Form",
+   "webhookId": "11a3f2f0-2e38-4bf6-baf1-36315ecb30c2",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "content": "# EMAIL NOTIFICAIONS\n\n**email notifications at each step**\n",
+    "height": 352,
+    "width": 1120,
+    "color": "#161A8D"
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    64,
+    2032
+   ],
+   "typeVersion": 1,
+   "id": "b0d23f84-106a-4b34-a240-9c4d4a30878f",
+   "name": "Sticky Note2"
+  },
+  {
+   "parameters": {
+    "content": "",
+    "height": 384,
+    "width": 1152
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    48,
+    2016
+   ],
+   "typeVersion": 1,
+   "id": "a03db3bf-9ab0-4fdf-9d96-d5a034fc84bc",
+   "name": "Sticky Note3"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ ['APPROVED','GATE1_APPROVED'].includes($json.state) }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "if-approved",
+   "name": "Approved?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    752,
+    1792
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $json.state === 'REJECTED' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "if-rejected",
+   "name": "Rejected?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    272,
+    1792
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://your-n8n.example/webhook/fde-revision-notify",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ request_id: $json.request_id, requester_email: $json.requester_email, cost_owner: $json.cost_owner || null, reject_reason: $json.reject_reason || '', revision_of: $json.revision_of || $json.request_id, revision_count: $json.revision_count ?? 0, business_unit: $json.business_unit, sku: $json.sku, item_description: $json.item_description || '', quantity: $json.quantity, category: $json.category, cost_center: $json.cost_center || '', preferred_vendor: $json.preferred_vendor || '', justification: $json.justification || '' }) }}",
+    "options": {}
+   },
+   "id": "fire-revloop",
+   "name": "Fire Revision Loop",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    544,
+    1776
+   ],
+   "onError": "continueRegularOutput"
   }
+ ],
+ "connections": {
+  "Procurement Request Form": {
+   "main": [
+    [
+     {
+      "node": "Normalize Request",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Normalize Request": {
+   "main": [
+    [
+     {
+      "node": "DoA Rule Lookup",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Vendor Catalog Lookup": {
+   "main": [
+    [
+     {
+      "node": "Best Price + Maverick Flag",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Best Price + Maverick Flag": {
+   "main": [
+    [
+     {
+      "node": "Catalog Match?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Catalog Match?": {
+   "main": [
+    [
+     {
+      "node": "Threshold Eval + Self-Check",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Notify #requests",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Needs Sourcing (RFQ)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Needs Sourcing (RFQ)": {
+   "main": [
+    [
+     {
+      "node": "Build Outcome",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "DoA Rule Lookup": {
+   "main": [
+    [
+     {
+      "node": "Load BU Policy",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Threshold Eval + Self-Check": {
+   "main": [
+    [
+     {
+      "node": "Route Decision",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Route Decision": {
+   "main": [
+    [
+     {
+      "node": "Auto-Approved",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Approval Card",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Approval Card",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Approval Card",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Auto-Approved": {
+   "main": [
+    [
+     {
+      "node": "Build Outcome",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email Notification Auto Approval",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Event Row": {
+   "main": [
+    [
+     {
+      "node": "Write Event Row",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Procurement Mailbox (IMAP)": {
+   "main": [
+    [
+     {
+      "node": "Parse Request Email",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Parse Request Email": {
+   "main": [
+    [
+     {
+      "node": "Parse OK?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Parse OK?": {
+   "main": [
+    [
+     {
+      "node": "Normalize Request",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Bounce Back (form link)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Notify #requests": {
+   "main": [
+    [
+     {
+      "node": "Post to #requests",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Post to #requests": {
+   "main": [
+    [
+     {
+      "node": "Email Notification Request",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Approval Card": {
+   "main": [
+    [
+     {
+      "node": "Post to #approvals",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Post to #approvals": {
+   "main": [
+    [
+     {
+      "node": "Wait for Decision",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email Notification Awaiting Approval",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Wait for Decision": {
+   "main": [
+    [
+     {
+      "node": "Apply Decision",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Apply Decision": {
+   "main": [
+    [
+     {
+      "node": "Build Outcome",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Outcome": {
+   "main": [
+    [
+     {
+      "node": "Build Event Row",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Post to #orders",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Approved?",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Rejected?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Post to #orders": {
+   "main": [
+    [
+     {
+      "node": "Email Notification Order Approved",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load BU Policy": {
+   "main": [
+    [
+     {
+      "node": "Vendor Catalog Lookup",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Bounce Back (form link)": {
+   "main": [
+    [
+     {
+      "node": "Bounce Back Email Form",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Approved?": {
+   "main": [
+    [
+     {
+      "node": "Email Notification Order Approved",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "Rejected?": {
+   "main": [
+    [
+     {
+      "node": "Fire Revision Loop",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "binaryMode": "separate"
+ }
 }

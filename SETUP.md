@@ -11,15 +11,22 @@ Nothing here needs a code change; the whole system is config over canvas.
 
 ## 1. Import the workflows
 
-Import the three JSONs under `workflows/` (n8n → Workflows → Import from File):
+Import the four JSONs under `workflows/` (n8n → Workflows → Import from File):
 
 - `fieldops-procure-to-approve.prod.json` — production, the live workflow.
 - `fieldops-procure-to-approve.dev.json` — DEV, the copy you edit and test.
 - `fieldops-regression-runner.json` — the evaluation harness.
+- `fieldops-revision-loop.json` — the reject, revise, re-approve loop.
 
 The DEV workflow uses its own form path so it can run alongside production. The
 Runner calls DEV by workflow id; after import, open the Runner's **Run DEV logic**
 node and reselect the imported DEV workflow.
+
+The Revision Loop exposes two webhooks (`fde-reject-form`, `fde-revision-notify`); the
+production flow's approval card links its **Reject** button to the first, and fires the
+second after it writes the `REJECTED` row. Both are wired by path, so importing and
+activating is enough. The pre-filled revision link and the reject/notify URLs use the
+instance host in `your-n8n.example`; point them at your own base URL.
 
 ## 2. Create the config tables
 
@@ -37,8 +44,10 @@ doubles as the column reference and starting data):
 - **business_units** — the unit registry: `code, name, active`
 - **pr_events** — the audit log. Create it empty; the workflow writes one row per
   request at its terminal state:
-  `request_id, event, detail, actor, ts, submitted_at, decided_at, cycle_seconds`.
-  The three timestamp columns make cycle time and stall rate a direct query.
+  `request_id, event, detail, actor, ts, submitted_at, decided_at, cycle_seconds,
+  revision_of, revision_count`.
+  The timestamp columns make cycle time and stall rate a direct query; the two
+  revision columns make rework rate and end-to-end case cycle time queries too.
 
 Bands must not overlap: the evaluator asserts exactly one band claims an amount and
 default-denies if more than one does. A unit with no `doa_rules` rows is safe;
@@ -61,11 +70,12 @@ channel is a secret change and a restart, not a workflow edit.
 
 ## 3b. Enable email notifications (optional)
 
-The workflows carry an email layer (five `emailSend` nodes: request received, awaiting
-approval, auto-approval, order approved, and a parse bounce-back) that **ships disabled**.
-To turn it on: create an SMTP credential for your mail server, assign it to the five
-nodes, and enable them. Each node continues on error, so an unreachable mail server never
-breaks a run. Until you do this, Slack is the notification channel.
+The workflows carry an email layer that **ships disabled**: five `emailSend` nodes in the
+production flow (request received, awaiting approval, auto-approval, order approved, and a
+parse bounce-back), plus two in the Revision Loop (revision requested, final rejection). To
+turn it on: create an SMTP credential for your mail server, assign it to those nodes, and
+enable them. Each node continues on error, so an unreachable mail server never breaks a run.
+Until you do this, Slack is the notification channel.
 
 ## 4. Verify
 
@@ -73,7 +83,7 @@ breaks a run. Until you do this, Slack is the notification channel.
 node golden/run_golden.mjs
 ```
 
-`18 passed` means the imported logic produces the known-correct outcomes. Then open
+`19 passed` means the imported logic produces the known-correct outcomes. Then open
 the **Regression Test Runner** form, pick a business unit, and confirm green
 in-platform. Green there means every request still routes to the right place for the
 right amount.

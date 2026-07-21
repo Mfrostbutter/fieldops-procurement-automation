@@ -1,0 +1,447 @@
+{
+ "name": "FieldOps - Revision Loop",
+ "nodes": [
+  {
+   "id": "rl-form-webhook",
+   "name": "Reject Reason Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    240,
+    240
+   ],
+   "webhookId": "fde-reject-form",
+   "parameters": {
+    "httpMethod": "GET",
+    "path": "fde-reject-form",
+    "responseMode": "responseNode",
+    "options": {}
+   }
+  },
+  {
+   "id": "rl-build-form",
+   "name": "Build Reason Form",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    460,
+    240
+   ],
+   "parameters": {
+    "jsCode": "// Render the approver's reason form. The Wait node resumes on GET (same as the Slack/email\n// approve link), so submit GET and carry signature + decision as hidden inputs - a GET submit\n// rewrites the query string, so anything not a field would be lost.\nconst q = $json.query || {};\nconst resume = q.resume || '';\nconst rid = q.rid || '';\nconst esc = (s) => String(s).replace(/&/g,'&amp;').replace(/\"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\nlet base = resume; const params = [];\nconst qi = resume.indexOf('?');\nif (qi >= 0) {\n  base = resume.slice(0, qi);\n  resume.slice(qi + 1).split('&').forEach(kv => {\n    if (!kv) return;\n    const i = kv.indexOf('=');\n    const k = i < 0 ? kv : kv.slice(0, i);\n    const v = i < 0 ? '' : kv.slice(i + 1);\n    params.push([decodeURIComponent(k), decodeURIComponent(v)]);\n  });\n}\nconst hidden = params.map(([k, v]) => `<input type=\"hidden\" name=\"${esc(k)}\" value=\"${esc(v)}\">`).join('');\nconst html = `<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Reject ${esc(rid)}</title>\n<style>body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0f1115;color:#e6e8ec;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}\n.card{background:#171a21;border:1px solid #262b36;border-radius:12px;padding:28px 30px;max-width:460px;width:100%;box-sizing:border-box}\nh1{font-size:18px;margin:0 0 6px}p{color:#9aa3b2;font-size:13px;margin:0 0 16px;line-height:1.5}\nlabel{display:block;font-size:13px;margin:0 0 6px;color:#c7cdd8}\ntextarea{width:100%;box-sizing:border-box;min-height:96px;background:#0f1115;border:1px solid #2c323e;border-radius:8px;color:#e6e8ec;padding:10px;font:inherit;resize:vertical}\nbutton{margin-top:14px;width:100%;background:#e5484d;color:#fff;border:0;border-radius:8px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}</style></head>\n<body><form class=\"card\" method=\"GET\" action=\"${esc(base)}\">${hidden}\n<h1>Reject ${esc(rid)}</h1>\n<p>The reason goes back to the requester so they can revise and resubmit. It is written to the audit log.</p>\n<label for=\"reason\">Reason for rejection</label>\n<textarea id=\"reason\" name=\"reason\" required placeholder=\"e.g. Over budget for this cost center. Re-scope or split the order.\"></textarea>\n<button type=\"submit\">Reject and return to requester</button></form></body></html>`;\nreturn [{ json: { html } }];"
+   }
+  },
+  {
+   "id": "rl-return-form",
+   "name": "Return Form",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    680,
+    240
+   ],
+   "parameters": {
+    "respondWith": "text",
+    "responseBody": "={{ $json.html }}",
+    "options": {
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "content-type",
+        "value": "text/html; charset=utf-8"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "rl-notify-webhook",
+   "name": "Revision Notify Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    240,
+    640
+   ],
+   "webhookId": "fde-revision-notify",
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "fde-revision-notify",
+    "responseMode": "onReceived",
+    "options": {}
+   }
+  },
+  {
+   "id": "rl-prepare",
+   "name": "Prepare Revision",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    460,
+    640
+   ],
+   "parameters": {
+    "jsCode": "// Bound the loop and build the prefilled revision link. Chain root = original request_id.\nconst b = $json.body || $json;\nconst now = new Date().toISOString();\nconst MAX = 3;\nconst count = Number(b.revision_count) || 0;\nconst chain = b.revision_of || b.request_id;\nconst is_final = count >= MAX;\nconst next_count = count + 1;\n// URLSearchParams is not in the Code sandbox; build the query string by hand.\nconst enc = encodeURIComponent;\nconst fields = {\n  business_unit: b.business_unit || '', sku: b.sku || '', item_description: b.item_description || '',\n  quantity: (b.quantity != null ? b.quantity : ''), category: b.category || '',\n  cost_center: b.cost_center || '', preferred_vendor: b.preferred_vendor || '',\n  justification: b.justification || '', requester_email: b.requester_email || '',\n  revision_of: chain, revision_count: next_count,\n};\nconst qp = Object.keys(fields).map(k => enc(k) + '=' + enc(String(fields[k]))).join('&');\nconst revise_link = 'https://your-n8n.example/form/fde-procurement-request' + '?' + qp;\nreturn [{ json: { ...b, now, MAX, count, next_count, chain, is_final, revise_link } }];"
+   }
+  },
+  {
+   "id": "rl-if-final",
+   "name": "Revision Cap Hit?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    680,
+    640
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $json.is_final }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "rl-build-final",
+   "name": "Build Final Row",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    920,
+    480
+   ],
+   "parameters": {
+    "jsCode": "const j = $json;\nreturn [{ json: {\n  request_id: j.request_id, event: 'REJECTED_FINAL',\n  detail: JSON.stringify({ reason: j.reject_reason || '', revisions: j.count, cap: j.MAX }),\n  actor: j.requester_email || 'system', ts: j.now,\n  submitted_at: null, decided_at: j.now, cycle_seconds: null,\n  revision_of: j.chain, revision_count: j.count,\n}}];"
+   }
+  },
+  {
+   "id": "rl-write-final",
+   "name": "Write Final Row",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1140,
+    480
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "value": "WAfXQqVAdlo8Bruh",
+     "mode": "id"
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": []
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "rl-email-final",
+   "name": "Email Final Rejection",
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    920,
+    620
+   ],
+   "onError": "continueRegularOutput",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ [$json.requester_email, $json.cost_owner].filter(Boolean).join(',') }}",
+    "subject": "=Rejected - {{ $json.request_id }} (no further revisions)",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $json.request_id }}</strong> was <strong>rejected</strong> and has reached the revision limit ({{ $json.MAX }} attempts), so it is now closed.</p><p style=\"background:#faf0f0;border-left:3px solid #e5484d;padding:8px 12px\"><strong>Reason:</strong> {{ $json.reject_reason || 'No reason given' }}</p><p>If this purchase is still needed, raise a fresh request rather than replying here.</p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "webhookId": "6cf4bfe6-f21d-45f2-86c7-6a58226828c9"
+  },
+  {
+   "id": "rl-slack-final",
+   "name": "Post Final to Slack",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1140,
+    620
+   ],
+   "onError": "continueRegularOutput",
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.ORDERS_SLACK_WEBHOOK }}",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ text: ':x: Final rejection - ' + $json.request_id, blocks: [{ type:'section', text:{ type:'mrkdwn', text: ':x: *Final rejection* - `' + $json.request_id + '`\\nReached the ' + $json.MAX + '-revision cap. Reason: ' + ($json.reject_reason || 'n/a') } }] }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "rl-build-rev",
+   "name": "Build Revision Row",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    920,
+    800
+   ],
+   "parameters": {
+    "jsCode": "const j = $json;\nreturn [{ json: {\n  request_id: j.request_id, event: 'REVISION_REQUESTED',\n  detail: JSON.stringify({ reason: j.reject_reason || '', attempt: j.next_count, link: j.revise_link }),\n  actor: j.requester_email || 'system', ts: j.now,\n  submitted_at: null, decided_at: null, cycle_seconds: null,\n  revision_of: j.chain, revision_count: j.next_count,\n}}];"
+   }
+  },
+  {
+   "id": "rl-write-rev",
+   "name": "Write Revision Row",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1140,
+    800
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "value": "WAfXQqVAdlo8Bruh",
+     "mode": "id"
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": []
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "rl-email-rev",
+   "name": "Email Revision Request",
+   "type": "n8n-nodes-base.emailSend",
+   "typeVersion": 2.1,
+   "position": [
+    920,
+    940
+   ],
+   "onError": "continueRegularOutput",
+   "credentials": {
+    "smtp": {
+     "id": "elHiM0orvNm4MEUT",
+     "name": "FieldOps SMTP (placeholder - set your mail server)"
+    }
+   },
+   "parameters": {
+    "fromEmail": "procurement-bot@fieldops.example",
+    "toEmail": "={{ $json.requester_email }}",
+    "subject": "=Revision needed - {{ $json.request_id }}",
+    "html": "=<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\"><p>Your request <strong>{{ $json.request_id }}</strong> was <strong>sent back for revision</strong> (attempt {{ $json.next_count }} of {{ $json.MAX }}).</p><p style=\"background:#fff7e6;border-left:3px solid #d99100;padding:8px 12px\"><strong>Reason:</strong> {{ $json.reject_reason || 'No reason given' }}</p><p>The link below opens the request pre-filled. Adjust the quantity, vendor, or justification and resubmit. It is re-priced and re-routed from scratch, so a smaller order may auto-approve.</p><p><a href=\"{{ $json.revise_link }}\" style=\"display:inline-block;background:#0a3743;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600\">Revise and resubmit</a></p><p style=\"color:#999;font-size:12px;margin-top:18px\">FieldOps Procurement, automated. This mailbox is not monitored.</p></div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "webhookId": "2fbedb48-9df8-471f-958d-7d0f77f74279"
+  },
+  {
+   "id": "rl-slack-rev",
+   "name": "Post Revision to Slack",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1140,
+    940
+   ],
+   "onError": "continueRegularOutput",
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.ORDERS_SLACK_WEBHOOK }}",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ text: 'Returned for revision - ' + $json.request_id, blocks: [{ type:'section', text:{ type:'mrkdwn', text: ':leftwards_arrow_with_hook: *Returned for revision* - `' + $json.request_id + '` (attempt ' + $json.next_count + ' of ' + $json.MAX + ')\\nReason: ' + ($json.reject_reason || 'n/a') } }] }) }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "sticky-form",
+   "name": "sticky-form",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    208,
+    -80
+   ],
+   "parameters": {
+    "content": "## Reason capture\nThe Reject button on the approval card opens this form. Its POST action is the paused request's own resume URL, so submitting resumes the main flow with `decision=reject` and the typed reason. No parked wait here.",
+    "height": 406,
+    "width": 700,
+    "color": 4
+   }
+  },
+  {
+   "id": "sticky-notify",
+   "name": "sticky-notify",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    208,
+    336
+   ],
+   "parameters": {
+    "content": "## Revision loop (thin bridge)\nThe main flow fires this webhook after it writes its own REJECTED row. Under the cap: notify the requester with the reason + a pre-filled link back into intake (carries `revision_of` + `revision_count`). The revised request is a NEW main-flow run, re-priced and re-routed from scratch. At the cap (3 revisions): close as REJECTED_FINAL and tell requester + cost owner.",
+    "height": 774,
+    "width": 1164,
+    "color": 6
+   }
+  },
+  {
+   "id": "sticky-runbook",
+   "name": "sticky-runbook",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    912,
+    -80
+   ],
+   "parameters": {
+    "content": "## [RUNBOOK - reject to re-approval](https://your-runbook.example/#zone-revision-loop)\n*The reject, revise, re-approve loop, documented.*\n\nThe node reference for this workflow, the cap and lineage model, and why it is a thin bridge rather than a parked wait, live in the runbook.\n\nThe [pr_events](https://your-runbook.example/#pr_events-the-audit-log) columns `revision_of` and `revision_count` are what make rework rate and end-to-end case cycle time a query.",
+    "height": 406,
+    "width": 464,
+    "color": 7
+   }
+  }
+ ],
+ "connections": {
+  "Reject Reason Webhook": {
+   "main": [
+    [
+     {
+      "node": "Build Reason Form",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Reason Form": {
+   "main": [
+    [
+     {
+      "node": "Return Form",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Revision Notify Webhook": {
+   "main": [
+    [
+     {
+      "node": "Prepare Revision",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Prepare Revision": {
+   "main": [
+    [
+     {
+      "node": "Revision Cap Hit?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Revision Cap Hit?": {
+   "main": [
+    [
+     {
+      "node": "Build Final Row",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email Final Rejection",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Post Final to Slack",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Revision Row",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email Revision Request",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Post Revision to Slack",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Final Row": {
+   "main": [
+    [
+     {
+      "node": "Write Final Row",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Revision Row": {
+   "main": [
+    [
+     {
+      "node": "Write Revision Row",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "binaryMode": "separate"
+ }
+}

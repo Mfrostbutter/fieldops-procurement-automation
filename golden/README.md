@@ -32,10 +32,12 @@ Exit code 0 = all pass, 1 = a case failed (with a per-field diff). No network,
 no n8n instance, no waiting on approvals: it tests the deterministic decision
 path (intake to route), which is everything that happens before a human is asked.
 
-## The 18 cases
+## The 19 cases
 
 Coverage across every route and every default-deny reason:
 
+- the rework re-score: the same SKU that needs single approval at qty 30 auto-approves
+  at qty 15, proving a revised request is re-priced and re-routed, not re-stamped
 - auto-approve under the floor (BU-01 and BU-03, different floors)
 - single and dual approver bands
 - lead-time-aware selection: the same SKU picks a different vendor for BU-01

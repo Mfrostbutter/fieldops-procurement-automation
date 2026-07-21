@@ -1,6 +1,6 @@
 # FieldOps Co. Procurement — Workflow Breakdown
 
-The visual companion to [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md): the three
+The visual companion to [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md): the four
 n8n workflows that make up the system, each shown on the canvas with what it does. For
 the node-by-node runbook, see [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md).
 
@@ -21,9 +21,13 @@ the node-by-node runbook, see [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFEREN
 - **Notifications** go to Slack, and to the requester and approvers by email once an SMTP
   credential is set.
 - **`pr_events` is the measurement instrument.** Each request writes one outcome row with
-  its route, derived amount, off-contract flag, savings, and submission/decision
-  timestamps, so cycle time, stall rate, and off-contract rate are queries against one
-  table, not a separate reporting build.
+  its route, derived amount, off-contract flag, savings, submission/decision timestamps, and
+  revision lineage, so cycle time, stall rate, off-contract rate, and rework rate are queries
+  against one table, not a separate reporting build.
+- **A rejection is a loop, not a dead end.** Reject captures a reason and hands off to a
+  separate Revision Loop workflow, which sends the requester the reason plus a pre-filled link
+  back into intake. The revised request is re-priced and re-routed from scratch, capped at three
+  attempts. Kept as its own workflow so production stays single-purpose.
 
 ---
 
@@ -36,7 +40,7 @@ edit DEV  ->  run the Regression Runner  ->  green?  ->  promote DEV to Producti
 ```
 
 A dev/prod split with an evaluation harness, so a change is proven before it reaches
-production. The golden set is the artifact the whole system rests on: 18 known requests
+production. The golden set is the artifact the whole system rests on: 19 known requests
 with known-correct outcomes that run the workflow's own decision code, so it cannot drift
 from what is deployed.
 
@@ -96,6 +100,30 @@ Because it runs the deployed decision code rather than a copy, it cannot drift f
 production.
 
 ![Regression Test Runner — golden set against DEV, green before promote](screenshots/03-regression-runner.png)
+
+---
+
+## 4. Revision Loop — reject, revise, re-approve
+
+What happens after an approver rejects. Kept as its **own workflow** so production stays
+single-purpose (score a request, drive it to a decision) while rework lives on its own canvas
+with its own trigger, actors, and metric. Two zones:
+
+- **Reason capture** — the **Reject** button on the approval card opens a small form asking for
+  a mandatory reason. The form's action is the paused request's own resume URL, so submitting
+  resumes the main flow with `decision=reject` and the typed reason. No parked wait here.
+- **Revision loop (thin bridge)** — the main flow fires this after it writes its own `REJECTED`
+  row. Under the cap: notify the requester with the reason plus a **pre-filled link** back into
+  intake (carrying `revision_of` + `revision_count`), and write a `REVISION_REQUESTED` audit row.
+  At the cap (3 revisions): close as `REJECTED_FINAL` and tell the requester and the cost owner.
+
+The revised request is a **new production run**, re-priced and re-routed from scratch, so a
+smaller order can now auto-approve. Terminate-and-link, not park-and-resume: no execution hangs
+waiting for a human edit, and the audit stays one clean terminal row per request, linked into a
+chain. That chain is what makes rework rate and end-to-end case cycle time queries against
+`pr_events`.
+
+![Revision Loop — reason capture, then the thin-bridge revision loop](screenshots/04-revision-loop.png)
 
 ---
 

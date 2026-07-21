@@ -32,9 +32,10 @@ workflows/
   fieldops-procure-to-approve.prod.json   production (the live workflow)
   fieldops-procure-to-approve.dev.json    DEV copy for testing changes
   fieldops-regression-runner.json         the evaluation harness
+  fieldops-revision-loop.json             reject -> revise -> re-approve loop
 golden/
   run_golden.mjs           the regression runner
-  golden_cases.json        18 known requests, known-correct outcomes
+  golden_cases.json        19 known requests, known-correct outcomes
   golden_config.json       point-in-time snapshot of the config tables
   README.md
 ```
@@ -52,7 +53,7 @@ node golden/run_golden.mjs
 ```
 
 ```
-18 passed, 0 failed, 18 total
+19 passed, 0 failed, 19 total
 ```
 
 The suite runs the production workflow's own decision code against a config
