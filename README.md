@@ -64,6 +64,4 @@ snapshot, so it cannot drift from what is deployed. It is the concrete answer to
 
 This repo is the shared surface for the engagement and after it. Changes are made
 here, reviewed here, and proven with the golden set before they reach production,
-whether that is the FieldOps team, an Agenius support engineer, or both.
-
-Delivered by Agenius AI Labs.
+whether that is the FieldOps team, a support engineer, or both.

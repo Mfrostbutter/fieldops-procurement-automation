@@ -215,7 +215,7 @@ Nodes in execution order, grouped by zone.
 
 ## Zone: INTAKE
 
-### 1. Procurement Request Form  `formTrigger`
+### 1. Procurement Request Form  [`formTrigger`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.formtrigger/)
 
 Front door 1. The company-wide web form that raises a requisition. Fields map one-to-one to the normalized schema.
 
@@ -227,13 +227,13 @@ Front door 1. The company-wide web form that raises a requisition. Fields map on
 }
 ```
 
-### 2. Procurement Mailbox (IMAP)  `emailReadImap`
+### 2. Procurement Mailbox (IMAP)  [`emailReadImap`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.emailreadimap/)
 
 Front door 2. Polls a monitored procurement mailbox. Currently **disabled**, pending an IMAP credential. Both doors converge on `Normalize Request`, so the rest of the workflow never knows which door a request came through.
 
 **What to change:** Enable by attaching an IMAP credential and toggling the node active. Nothing else changes: the parser already produces the normalized schema. See the email template section for the shape it expects.
 
-### 3. Parse Request Email  `code`
+### 3. Parse Request Email  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Deterministic regex parse of a templated request email into the normalized schema. No LLM. Cuts quoted reply history so a forwarded thread cannot inject stale values, accepts common label variants, and refuses to guess.
 
@@ -301,19 +301,19 @@ return [{ json: {
 }}];
 ```
 
-### 4. Parse OK?  `if`
+### 4. Parse OK?  [`if`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/)
 
 Gate. Routes a clean parse into `Normalize Request` and a non-conforming one to `Bounce Back`. Parseable means the fields the pipeline cannot invent (`business_unit`, `sku`, `quantity`) are present and valid.
 
 **What to change:** Nothing normally. This reads `parse_ok` from the parser; change the required-field policy in `Parse Request Email`, not here.
 
-### 5. Bounce Back (form link)  `set`
+### 5. Bounce Back (form link)  [`set`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/)
 
 Replies to a non-conforming email with a link to the web form, rather than guessing at the missing fields. Cheap, and it cannot be wrong.
 
 **What to change:** Point `form_url` at your form endpoint and wire this to whatever mail-send node you use. Currently a stub that carries the bounce reason.
 
-### 6. Normalize Request  `code`
+### 6. Normalize Request  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 The convergence point. Every intake channel becomes one purchase-requisition object here, so downstream sees one shape. Mints a deterministic `request_id` (content + minute) for dedup, and **throws on an invalid quantity** rather than defaulting it.
 
@@ -363,13 +363,13 @@ return [{ json: {
 
 ## Zone: POLICY
 
-### 7. DoA Rule Lookup  `dataTable`
+### 7. DoA Rule Lookup  [`dataTable`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable/)
 
 POLICY, step 1. Reads every [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) row for this request's business unit and category. `doa_rules` is the policy master: thresholds, approval mode, approvers, cost center, lead-time tolerance, escalation window, and the auto-approve floor all live in its rows.
 
 **What to change:** This is a table read. To change any routing behaviour, edit `doa_rules` (cookbook below), never this node. The node only supplies the filter.
 
-### 8. Load BU Policy  `code`
+### 8. Load BU Policy  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 POLICY, step 2. Collapses the business unit's several [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows into **one** item carrying the request plus its policy, and extracts `max_lead_time_days`. This exists to stop a fan-out: a Data Table read runs once per input item, so letting three band rows flow into the catalog lookup returned three duplicate copies of every vendor.
 
@@ -396,13 +396,13 @@ return [{ json: { ...req,
 
 ## Zone: PRICE
 
-### 9. Vendor Catalog Lookup  `dataTable`
+### 9. Vendor Catalog Lookup  [`dataTable`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable/)
 
 PRICE, step 1. Reads every [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) row for the requested SKU and category, one row per vendor that lists the item.
 
 **What to change:** A table read. Add or reprice a vendor line in `vendor_catalog`, not here.
 
-### 10. Best Price + Maverick Flag  `code`
+### 10. Best Price + Maverick Flag  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 PRICE, step 2. Derives the amount from the catalog rows, never from the requester. Picks the cheapest source that can still deliver inside the BU's lead-time tolerance, computes the saving versus the incumbent contract, flags an off-contract (maverick) request, and reports the lead-time premium. No vendor in tolerance flags a breach and forces a human.
 
@@ -486,19 +486,19 @@ return [{ json: { ...req,
 }}];
 ```
 
-### 11. Catalog Match?  `if`
+### 11. Catalog Match?  [`if`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/)
 
 Gate. If the SKU priced against at least one vendor, the request proceeds to routing and posts to `#requests`. If nothing matched, it goes to sourcing.
 
 **What to change:** Nothing. Reads `catalog_match` set by the pricing node.
 
-### 12. Needs Sourcing (RFQ)  `set`
+### 12. Needs Sourcing (RFQ)  [`set`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/)
 
 Terminal state for an item no approved vendor lists. Marks `NEEDS_SOURCING` and routes to the outcome post rather than auto-approving an un-priced request. The three-quote sourcing event itself is roadmap; detection ships in the pilot.
 
 **What to change:** Wire this to your RFQ or sourcing process when it exists. Today it records the state and notifies.
 
-### 13. Notify #requests  `code`
+### 13. Notify #requests  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Builds the Slack Block Kit message announcing a raised-and-priced requisition. `#requests` is a separate channel and audience from `#approvals`.
 
@@ -521,7 +521,7 @@ return [{ json: { ...j, slack_payload: {
   ]}}}];
 ```
 
-### 14. Post to #requests  `httpRequest`
+### 14. Post to #requests  [`httpRequest`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/)
 
 Posts the `#requests` message. A parallel branch (a side effect), never inline in the pipeline, so a Slack response can never be mistaken for the request object downstream.
 
@@ -536,7 +536,7 @@ Posts the `#requests` message. A parallel branch (a side effect), never inline i
 
 ## Zone: ROUTE
 
-### 15. Threshold Eval + Self-Check  `code`
+### 15. Threshold Eval + Self-Check  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 ROUTE. Deterministic evaluation against the [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) bands, plus a self-check that grades its own output. Default-denies on any gap: no rule row, a lead-time breach, an amount outside every band, or overlapping bands. A missing config row reaches a human, it never auto-approves.
 
@@ -606,13 +606,13 @@ return [{ json: { ...base,
 }}];
 ```
 
-### 16. Route Decision  `switch`
+### 16. Route Decision  [`switch`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.switch/)
 
 Switch on the computed route. `auto_approve` goes to the auto-approved state; `single_approver`, `dual_approver`, and `default_deny` all converge on the one approval gate. Same shape, different data.
 
 **What to change:** Nothing. The route is decided by the eval node from table data; this only fans the four outcomes out.
 
-### 17. Auto-Approved  `set`
+### 17. Auto-Approved  [`set`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.set/)
 
 Terminal state for a request under the BU's auto-approve floor. Records `APPROVED` and routes straight to the outcome post, no human.
 
@@ -623,7 +623,7 @@ Terminal state for a request under the BU's auto-approve floor. Records `APPROVE
 
 ## Zone: APPROVE
 
-### 18. Build Approval Card  `code`
+### 18. Build Approval Card  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Builds the Slack approval card with decision-grade context (best vendor, saving, lead time, contract-vs-spot, priced alternatives, flags) and both decision links. Approve and Reject are the **same execution's resume URL** with a different `decision` value, so the same button works from Slack or email.
 
@@ -688,7 +688,7 @@ return [{ json: { ...j,
 }}];
 ```
 
-### 19. Post to #approvals  `httpRequest`
+### 19. Post to #approvals  [`httpRequest`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/)
 
 Posts the approval card to the reviewer channel and hands off to the Wait node.
 
@@ -698,13 +698,13 @@ Posts the approval card to the reviewer channel and hands off to the Wait node.
 "url": "={{ $env.APPROVALS_SLACK_WEBHOOK }}"
 ```
 
-### 20. Wait for Decision  `wait`
+### 20. Wait for Decision  [`wait`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/)
 
 Pauses the execution until a decision link is clicked (webhook resume) or the timeout elapses. The paused execution is the state; no external store needed.
 
 **What to change:** The timeout is driven by `escalation_hours` from [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). A resume with no decision is the escalation signal.
 
-### 21. Apply Decision  `code`
+### 21. Apply Decision  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Resolves the outcome from the resumed webhook query: approve, reject, or (on timeout, no decision) escalate to the configured fallback approver. A dual-approval approve records gate 1 of 2.
 
@@ -741,7 +741,7 @@ return [{ json: { ...base, decision: 'timed_out', decided_by: null,
 
 ## Zone: RECORD
 
-### 22. Build Outcome  `code`
+### 22. Build Outcome  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Builds the `#orders` post for **every** terminal state: approved, rejected, escalated, and no-catalog-match. A good-news-only channel is not an audit trail. Computes time-to-decision. Deliberately does **not** mint a PO number.
 
@@ -823,7 +823,7 @@ return [{ json: { ...j,
 }}];
 ```
 
-### 23. Post to #orders  `httpRequest`
+### 23. Post to #orders  [`httpRequest`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/)
 
 Posts the outcome to the orders channel. Third channel, third audience: decided.
 
@@ -833,7 +833,7 @@ Posts the outcome to the orders channel. Third channel, third audience: decided.
 "url": "={{ $env.ORDERS_SLACK_WEBHOOK }}"
 ```
 
-### 24. Build Event Row  `code`
+### 24. Build Event Row  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Flattens the request into one audit row: request id, event (state), a JSON detail blob (which now carries the rejection reason), actor, the write timestamp, the cycle-time fields (`submitted_at`, `decided_at`, `cycle_seconds`), and the revision lineage (`revision_of`, `revision_count`).
 
@@ -875,7 +875,7 @@ return [{ json: {
 }}];
 ```
 
-### 25. Write Event Row  `dataTable`
+### 25. Write Event Row  [`dataTable`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable/)
 
 Appends the row to [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log). This table is the measurement instrument the whole 90-day value story reads from, and the input to rule-drift detection.
 
@@ -889,33 +889,33 @@ Appends the row to [`pr_events`](https://your-runbook.example/#pr_events-the-aud
 
 **Why terminate-and-link beats park-and-resume.** A revision is not a re-stamp of the original decision. A changed quantity or vendor changes the derived amount and can change the route: a revision that drops under the auto-approve ceiling now auto-approves; one that crosses into dual approval escalates. Re-entering the same engine is the config-over-canvas payoff, and the golden set proves it (`bu01-rework-revised-down-auto`).
 
-### R1. Reject Reason Webhook  `webhook` (GET)
+### R1. Reject Reason Webhook  [`webhook`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/) (GET)
 
 The **Reject** button on the approval card points here, not straight at the resume URL. It renders a small form asking for a mandatory rejection reason. The reason is what the requester revises against, so it is captured at the moment of rejection.
 
 **What to change:** Nothing usually. The path (`fde-reject-form`) must match the URL the approval card builds.
 
-### R2. Build Reason Form  `code`
+### R2. Build Reason Form  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Renders the reason form as HTML. The form's action is the paused request's **own resume URL**, and it submits by **GET** because the Wait node resumes on GET (the same method as the Slack/email approve link). A GET submit rewrites the query string, so the signature and `decision=reject` are carried as hidden inputs alongside the typed reason.
 
 **What to change:** Styling only. Do not switch the form to POST; the Wait node will not match it.
 
-### R3. Return Form  `respondToWebhook`
+### R3. Return Form  [`respondToWebhook`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.respondtowebhook/)
 
 Returns the rendered HTML to the approver's browser.
 
-### R4. Revision Notify Webhook  `webhook` (POST)
+### R4. Revision Notify Webhook  [`webhook`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/) (POST)
 
 The production flow calls this (fire-and-forget) after it writes the `REJECTED` row. The body carries the request, the reason, the cost owner, and the current `revision_count`. It responds immediately, so the production run is never blocked on it.
 
-### R5. Prepare Revision  `code`
+### R5. Prepare Revision  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Bounds the loop and builds the return path. It computes the next attempt number, decides whether the cap is hit (3 revisions), fixes the chain root (`revision_of` = the original request id), and builds a **pre-filled intake link** carrying the item, the requester, and the lineage as query parameters, so the requester reopens the request already populated.
 
 **What to change:** `MAX` (the revision cap). The link is built by hand because `URLSearchParams` is not available in the Code sandbox.
 
-### R6. Revision Cap Hit?  `if`
+### R6. Revision Cap Hit?  [`if`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.if/)
 
 Splits the two outcomes: under the cap, ask for a revision; at the cap, close it.
 
