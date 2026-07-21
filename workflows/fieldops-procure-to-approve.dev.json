@@ -68,16 +68,12 @@
        "requiredField": true
       },
       {
-       "fieldLabel": "revision_of",
        "fieldName": "revision_of",
-       "fieldType": "hiddenField",
-       "fieldValue": ""
+       "fieldType": "hiddenField"
       },
       {
-       "fieldLabel": "revision_count",
        "fieldName": "revision_count",
-       "fieldType": "hiddenField",
-       "fieldValue": ""
+       "fieldType": "hiddenField"
       }
      ]
     },
@@ -86,8 +82,8 @@
    "type": "n8n-nodes-base.formTrigger",
    "typeVersion": 2.2,
    "position": [
-    -640,
-    576
+    -624,
+    544
    ],
    "id": "form-trigger",
    "name": "Procurement Request Form",
@@ -136,8 +132,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    1296,
-    544
+    1280,
+    496
    ],
    "id": "vendor-catalog-lookup",
    "name": "Vendor Catalog Lookup",
@@ -152,8 +148,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1488,
-    544
+    1472,
+    496
    ],
    "id": "best-price--maverick-flag",
    "name": "Best Price + Maverick Flag",
@@ -189,7 +185,7 @@
    "typeVersion": 2.2,
    "position": [
     1664,
-    544
+    496
    ],
    "id": "catalog-match-if",
    "name": "Catalog Match?",
@@ -221,7 +217,7 @@
    "typeVersion": 3.4,
    "position": [
     1440,
-    800
+    768
    ],
    "id": "needs-sourcing-(rfq)",
    "name": "Needs Sourcing (RFQ)",
@@ -375,8 +371,8 @@
    "type": "n8n-nodes-base.switch",
    "typeVersion": 3.2,
    "position": [
-    0,
-    1568
+    -16,
+    1632
    ],
    "id": "route-switch",
    "name": "Route Decision",
@@ -407,8 +403,8 @@
    "type": "n8n-nodes-base.set",
    "typeVersion": 3.4,
    "position": [
-    592,
-    1472
+    960,
+    1616
    ],
    "id": "auto-approved",
    "name": "Auto-Approved",
@@ -422,8 +418,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1440,
-    1520
+    1536,
+    1616
    ],
    "id": "build-event-row",
    "name": "Build Event Row",
@@ -448,8 +444,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    1616,
-    1520
+    1760,
+    1616
    ],
    "id": "events-insert",
    "name": "Write Event Row",
@@ -466,7 +462,7 @@
    "typeVersion": 2,
    "position": [
     -624,
-    800
+    768
    ],
    "id": "email-trigger",
    "name": "Procurement Mailbox (IMAP)",
@@ -549,8 +545,8 @@
    "type": "n8n-nodes-base.set",
    "typeVersion": 3.4,
    "position": [
-    -80,
-    768
+    240,
+    784
    ],
    "id": "bounce-back",
    "name": "Bounce Back (form link)",
@@ -600,8 +596,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    304,
-    1648
+    224,
+    1712
    ],
    "id": "build-approval-card",
    "name": "Build Approval Card",
@@ -620,8 +616,8 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    512,
-    1648
+    400,
+    1712
    ],
    "id": "post-approvals",
    "name": "Post to #approvals",
@@ -639,8 +635,8 @@
    "type": "n8n-nodes-base.wait",
    "typeVersion": 1.1,
    "position": [
-    736,
-    1648
+    592,
+    1712
    ],
    "id": "wait-decision",
    "name": "Wait for Decision",
@@ -655,8 +651,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    960,
-    1648
+    784,
+    1712
    ],
    "id": "apply-decision",
    "name": "Apply Decision",
@@ -670,8 +666,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1248,
-    1520
+    1296,
+    1616
    ],
    "id": "build-outcome",
    "name": "Build Outcome",
@@ -690,8 +686,8 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    1472,
-    1712
+    960,
+    1856
    ],
    "id": "post-orders",
    "name": "Post to #orders",
@@ -721,8 +717,8 @@
    "type": "n8n-nodes-base.executeWorkflowTrigger",
    "typeVersion": 1.1,
    "position": [
-    -640,
-    368
+    -624,
+    352
    ],
    "id": "test-trigger",
    "name": "Procurement Test Trigger"
@@ -786,7 +782,7 @@
    "typeVersion": 2,
    "position": [
     1632,
-    800
+    768
    ],
    "id": "gate-sourcing",
    "name": "Test? (sourcing)"
@@ -818,7 +814,7 @@
    "typeVersion": 2,
    "position": [
     1856,
-    528
+    496
    ],
    "id": "gate-live",
    "name": "Test? (live path)"
@@ -828,7 +824,7 @@
    "type": "n8n-nodes-base.noOp",
    "typeVersion": 1,
    "position": [
-    -192,
+    -224,
     1568
    ],
    "id": "return-decision",
@@ -885,7 +881,7 @@
   {
    "parameters": {
     "content": "## [4. ROUTE](https://your-runbook.example/#zone-route)\n**The DoA matrix IS the routing engine.**\n\nIN: priced request.\nOUT: one of auto-approve / single / dual / default-deny.\nREADS: the policy already loaded in step 2.\n\nDeterministic, and it grades its own output. 8 BUs differ in thresholds and approvers, not in shape: one workflow, N config rows.\n\n**DEFAULT-DENY on:** missing rule row, lead-time breach, amount outside all bands, overlapping bands, unrecognised route.\nA missing config row must NEVER auto-approve.\n\n**Test hooks (DEV):** *Test? (route)* diverts to *Return Decision* in test mode, giving the runner one clean terminal to assert against. No event row is written.",
-    "height": 912,
+    "height": 1072,
     "width": 848,
     "color": 5
    },
@@ -900,9 +896,9 @@
   },
   {
    "parameters": {
-    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason), not in shape, so they share one gate.\n\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email, so **the approval is state-shaped, not Slack-shaped**. If Slack is down the timer still fires.\n\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.",
-    "height": 912,
-    "width": 944,
+    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason)\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email.\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.\n\n**After the gate, the outcome forks by state.** *Approved?* takes an approval to the order post and the ready-for-PO email. *Rejected?* fires the [Revision Loop](https://your-runbook.example/#zone-revision-loop).\n\n**Reject is a loop, not a dead end.** The Reject button opens a mandatory reason form, which resumes the request with `decision=reject` and the reason. The requester gets the reason plus a pre-filled link back into intake; the revised request is a NEW run, re-priced and re-routed from scratch, so a smaller order can now auto-approve. Capped at 3 attempts, then REJECTED_FINAL to requester + cost owner. Every pass links to the original request, so rework rate is a query.",
+    "height": 1072,
+    "width": 960,
     "color": 4
    },
    "type": "n8n-nodes-base.stickyNote",
@@ -916,15 +912,15 @@
   },
   {
    "parameters": {
-    "content": "## [6. RECORD + CLOSE](https://your-runbook.example/#zone-record)\n**The instrument is a table, not a dashboard.**\n\nIN: any terminal state.\nOUT: one row per request at its terminal state, plus an outcome post.\nWRITES: [pr_events](https://your-runbook.example/#pr_events-the-audit-log).  POSTS: #orders.\n\nCycle time, stall rate, off-contract rate, rework rate and rule drift are all queries against this table. A dashboard is roadmap.\n\nEvery terminal state posts, including rejections and escalations. A good-news-only channel is not an audit trail.\n\nThe outcome forks by state: **Approved?** sends the ready-for-PO email; **Rejected?** fires the [Revision Loop](https://your-runbook.example/#zone-revision-loop), so a rejection becomes revise-and-resubmit, not a dead end. The row carries `revision_of` and `revision_count`, so rework is queryable.\n\n**No PO number is invented here.** The ERP owns that sequence.",
-    "height": 912,
+    "content": "## [6. RECORD + CLOSE](https://your-runbook.example/#zone-record)\n**The instrument is a table, not a dashboard.**\n\nIN: any terminal state.\nOUT: one row per request at its terminal state, plus an outcome post.\nWRITES: [pr_events](https://your-runbook.example/#pr_events-the-audit-log).  POSTS: #orders.\n\nCycle time, stall rate, off-contract rate, rework rate and rule drift are all queries against this table. A dashboard is roadmap.\n\nEvery terminal state posts, including rejections and escalations. A good-news-only channel is not an audit trail.\n\nThe row carries `revision_of` and `revision_count`, so a rejection that returns as a revision stays one linked chain, and rework is queryable.\n",
+    "height": 1072,
     "width": 880,
     "color": 5
    },
    "type": "n8n-nodes-base.stickyNote",
    "typeVersion": 1,
    "position": [
-    1136,
+    1152,
     1024
    ],
    "id": "sticky-record",
@@ -1044,8 +1040,8 @@
   {
    "parameters": {
     "content": "",
-    "height": 2416,
-    "width": 2800
+    "height": 2576,
+    "width": 2816
    },
    "type": "n8n-nodes-base.stickyNote",
    "position": [
@@ -1069,8 +1065,8 @@
    "type": "n8n-nodes-base.emailSend",
    "typeVersion": 2.1,
    "position": [
-    224,
-    2176
+    368,
+    2320
    ],
    "id": "a00eb204-a24c-4b93-b51c-f5600b3e4ecf",
    "name": "Email Notification Request Recieved",
@@ -1096,8 +1092,8 @@
    "type": "n8n-nodes-base.emailSend",
    "typeVersion": 2.1,
    "position": [
-    448,
-    2176
+    592,
+    2320
    ],
    "id": "3e5aac6e-0aef-4713-a0b1-6f48d323342d",
    "name": "Email Notification Approval Waiting",
@@ -1119,8 +1115,8 @@
    },
    "type": "n8n-nodes-base.stickyNote",
    "position": [
-    -80,
-    2032
+    64,
+    2176
    ],
    "typeVersion": 1,
    "id": "6e8289ca-5595-47af-aa4c-629774c5048b",
@@ -1134,8 +1130,8 @@
    },
    "type": "n8n-nodes-base.stickyNote",
    "position": [
-    -96,
-    2016
+    48,
+    2160
    ],
    "typeVersion": 1,
    "id": "8bd991e2-8aaf-436e-843f-ed7ed5bfee37",
@@ -1154,8 +1150,8 @@
    "type": "n8n-nodes-base.emailSend",
    "typeVersion": 2.1,
    "position": [
-    672,
-    2176
+    816,
+    2320
    ],
    "id": "a3778551-920d-4bff-9f76-2db0c10d3c81",
    "name": "Email Notification Auto Approve",
@@ -1181,8 +1177,8 @@
    "type": "n8n-nodes-base.emailSend",
    "typeVersion": 2.1,
    "position": [
-    -16,
-    2176
+    128,
+    2320
    ],
    "id": "1e54ecdf-3cdf-46b9-b5d1-dfcc94c52df4",
    "name": "Bounce back email form link",
@@ -1208,8 +1204,8 @@
    "type": "n8n-nodes-base.emailSend",
    "typeVersion": 2.1,
    "position": [
-    896,
-    2176
+    1040,
+    2320
    ],
    "id": "847ab9bc-b2db-4d8c-a679-56312fab7046",
    "name": "Email Notification Order Approved",
@@ -1223,14 +1219,6 @@
    "onError": "continueRegularOutput"
   },
   {
-   "id": "if-approved",
-   "name": "Approved?",
-   "type": "n8n-nodes-base.if",
-   "typeVersion": 2.2,
-   "position": [
-    1248,
-    2000
-   ],
    "parameters": {
     "conditions": {
      "options": {
@@ -1254,17 +1242,17 @@
      "combinator": "and"
     },
     "options": {}
-   }
-  },
-  {
-   "id": "if-rejected",
-   "name": "Rejected?",
+   },
+   "id": "if-approved",
+   "name": "Approved?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    1248,
-    1760
-   ],
+    656,
+    1904
+   ]
+  },
+  {
    "parameters": {
     "conditions": {
      "options": {
@@ -1288,18 +1276,17 @@
      "combinator": "and"
     },
     "options": {}
-   }
+   },
+   "id": "if-rejected",
+   "name": "Rejected?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    224,
+    1904
+   ]
   },
   {
-   "id": "fire-revloop",
-   "name": "Fire Revision Loop",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4.2,
-   "position": [
-    1472,
-    1760
-   ],
-   "onError": "continueRegularOutput",
    "parameters": {
     "method": "POST",
     "url": "https://your-n8n.example/webhook/fde-revision-notify-dev",
@@ -1307,7 +1294,16 @@
     "specifyBody": "json",
     "jsonBody": "={{ JSON.stringify({ request_id: $json.request_id, requester_email: $json.requester_email, cost_owner: $json.cost_owner || null, reject_reason: $json.reject_reason || '', revision_of: $json.revision_of || $json.request_id, revision_count: $json.revision_count ?? 0, business_unit: $json.business_unit, sku: $json.sku, item_description: $json.item_description || '', quantity: $json.quantity, category: $json.category, cost_center: $json.cost_center || '', preferred_vendor: $json.preferred_vendor || '', justification: $json.justification || '' }) }}",
     "options": {}
-   }
+   },
+   "id": "fire-revloop",
+   "name": "Fire Revision Loop",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    432,
+    1888
+   ],
+   "onError": "continueRegularOutput"
   }
  ],
  "connections": {
@@ -1604,7 +1600,13 @@
   },
   "Post to #orders": {
    "main": [
-    []
+    [
+     {
+      "node": "Email Notification Order Approved",
+      "type": "main",
+      "index": 0
+     }
+    ]
    ]
   },
   "Load BU Policy": {
