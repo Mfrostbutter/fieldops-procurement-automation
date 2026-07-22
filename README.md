@@ -26,7 +26,6 @@ WORKFLOW-BREAKDOWN.md      each workflow on the canvas, with what it does
 SETUP.md                   stand it up in your own n8n
 docs/
   WORKFLOW-REFERENCE.md    node-by-node operator runbook
-  assets/workflow-board.png
 screenshots/               canvas screenshots for the breakdown
 workflows/
   fieldops-procure-to-approve.prod.json   production (the live workflow)

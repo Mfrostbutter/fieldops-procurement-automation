@@ -37,7 +37,8 @@ to run the business.
   audit trail. Notifications go to Slack and, once an SMTP credential is set, to the
   requester and approver by email.
 
-![The six-zone flow with the reject-to-revision loop under APPROVE, over the config tables that drive it](docs/assets/workflow-board.png)
+The six-zone flow, the reject-to-revision loop under APPROVE, and the config tables
+that drive it are laid out on the [architecture whiteboard](https://www.figma.com/board/workflow-board).
 
 ## The workflows
 
