@@ -3,18 +3,18 @@
 FieldOps Co. procurement pilot. This is the maintainer's companion to the n8n
 workflow: every node, what it does, and what you would change to make it yours.
 It pairs with the [architecture whiteboard](https://www.figma.com/board/workflow-board)
-(the six-zone flow) and the design notes in `../WORKFLOW-ARCHITECTURE.md`.
+(the six-zone flow) and the design notes in `ARCHITECTURE.md`.
 
 ![Procurement approval workflow: the six-zone flow with the reject-to-revision loop under APPROVE, over the config tables that drive it](assets/workflow-board.png)
 
 ## How to use this document
 
 This runbook is meant to be clicked, not just read. Wherever you see a small
-**blue pill**, it is a link, and every link opens in a new tab so you never lose
+<code class="pill">blue pill</code>, it is a link, and every link opens in a new tab so you never lose
 your place:
 
 - The blue pill after a node's name (the one labeled with its node type, like
-  `code` or `if`) opens that node's official n8n documentation.
+  <code class="pill">code</code> or <code class="pill">if</code>) opens that node's official n8n documentation.
 - The blue pill on a table name, under **Config tables** below, opens the live
   Data Table inside n8n, where the real rows live.
 - A table name mentioned in the running text links to that table's definition
@@ -249,7 +249,7 @@ Company web form. Raises a requisition. Fields map one-to-one to the normalized 
 }
 ```
 
-### 2. Procurement Mailbox (IMAP)  [`emailReadImap`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.emailreadimap/)
+### 2. Procurement Mailbox (IMAP)  [`emailReadImap`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.emailimap)
 
 Polls a procurement mailbox. Disabled, pending an IMAP credential. Both channels converge on `Normalize Request`, so downstream nodes see one shape regardless of channel.
 
@@ -1035,7 +1035,7 @@ and dual bands, lead-time-aware vendor selection (the same SKU picks a different
 vendor per business unit, sometimes at a premium), default-deny on a missing rule
 row, a lead-time breach, and an out-of-band amount, sourcing on no catalog match,
 the maverick flag, and the quantity guard that throws on `0` or `"two boxes"`
-rather than silently ordering one. Detail in `../golden/README.md`.
+rather than silently ordering one. Detail in `golden/README.md`.
 
 This is the concrete answer to "how do you know green means correct": after any
 change to the workflow or the tables, re-run the set.
