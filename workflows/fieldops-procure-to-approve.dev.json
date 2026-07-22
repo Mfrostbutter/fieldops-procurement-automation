@@ -456,8 +456,8 @@
    "type": "n8n-nodes-base.switch",
    "typeVersion": 3.2,
    "position": [
-    -16,
-    1632
+    -96,
+    1680
    ],
    "id": "route-switch",
    "name": "Route Decision",
@@ -489,7 +489,7 @@
    "typeVersion": 3.4,
    "position": [
     704,
-    1616
+    1488
    ],
    "id": "auto-approved",
    "name": "Auto-Approved",
@@ -681,8 +681,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    288,
-    1872
+    272,
+    1744
    ],
    "id": "build-approval-card",
    "name": "Build Approval Card",
@@ -702,7 +702,7 @@
    "typeVersion": 4.2,
    "position": [
     480,
-    1872
+    1744
    ],
    "id": "post-approvals",
    "name": "Post to #approvals",
@@ -720,8 +720,8 @@
    "type": "n8n-nodes-base.wait",
    "typeVersion": 1.1,
    "position": [
-    672,
-    1872
+    656,
+    1744
    ],
    "id": "wait-decision",
    "name": "Wait for Decision",
@@ -736,8 +736,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    880,
-    1872
+    864,
+    1744
    ],
    "id": "apply-decision",
    "name": "Apply Decision",
@@ -909,8 +909,8 @@
    "type": "n8n-nodes-base.noOp",
    "typeVersion": 1,
    "position": [
-    -224,
-    1568
+    -192,
+    1504
    ],
    "id": "return-decision",
    "name": "Return Decision"
@@ -1013,7 +1013,7 @@
   },
   {
    "parameters": {
-    "content": "# FieldOps Co. - Procure-to-Approve  (pilot: BU-01, MRO)\n**One workflow. The business units differ in their CONFIG ROWS, not in their shape.**\n\n`INTAKE \u2192 POLICY \u2192 PRICE \u2192 ROUTE \u2192 APPROVE \u2192 RECORD`\n\nLoad the BU's policy, price within it, route on the derived amount, gate it with a human, record every transition.\n\nCanvas = what this is and what each part's contract is. The maintainer doc = why it is shaped this way. Values live in neither: they are in the config tables.",
+    "content": "# FieldOps Co. - Procure-to-Approve  (DEV)\n**The development copy. Edit and prove changes here, then promote to production.**\n\n`INTAKE \u2192 POLICY \u2192 PRICE \u2192 ROUTE \u2192 APPROVE \u2192 RECORD`\n\nSame shape as production, with inert test hooks: a `_mode: test` run returns its decision and short-circuits before Slack, the approval wait, and the audit write, so a test leaves no side effects.\n\nCanvas = what this is and what each part's contract is. The maintainer doc = why it is shaped this way. Values live in neither: they are in the config tables.",
     "height": 320,
     "width": 2704,
     "color": 7
