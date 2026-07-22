@@ -1,9 +1,9 @@
 {
-  "name": "FieldOps - Revision Loop",
+  "name": "FieldOps - Revision Loop (DEV)",
   "nodes": [
     {
       "parameters": {
-        "path": "fde-reject-form",
+        "path": "fde-reject-form-dev",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -13,9 +13,9 @@
       "typeVersion": 2,
       "position": [
         272,
-        128
+        112
       ],
-      "webhookId": "fde-reject-form"
+      "webhookId": "fde-reject-form-dev"
     },
     {
       "parameters": {
@@ -27,7 +27,7 @@
       "typeVersion": 2,
       "position": [
         496,
-        128
+        112
       ]
     },
     {
@@ -51,13 +51,13 @@
       "typeVersion": 1.1,
       "position": [
         720,
-        128
+        112
       ]
     },
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "fde-revision-notify",
+        "path": "fde-revision-notify-dev",
         "options": {}
       },
       "id": "rl-notify-webhook",
@@ -65,21 +65,21 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        304,
+        272,
         640
       ],
-      "webhookId": "fde-revision-notify"
+      "webhookId": "fde-revision-notify-dev"
     },
     {
       "parameters": {
-        "jsCode": "// Bound the loop and build the prefilled revision link. Chain root = original request_id.\nconst b = $json.body || $json;\nconst now = new Date().toISOString();\nconst MAX = 3;\nconst count = Number(b.revision_count) || 0;\nconst chain = b.revision_of || b.request_id;\nconst is_final = count >= MAX;\nconst next_count = count + 1;\n// URLSearchParams is not in the Code sandbox; build the query string by hand.\nconst enc = encodeURIComponent;\nconst fields = {\n  business_unit: b.business_unit || '', sku: b.sku || '', item_description: b.item_description || '',\n  quantity: (b.quantity != null ? b.quantity : ''), category: b.category || '',\n  cost_center: b.cost_center || '', preferred_vendor: b.preferred_vendor || '',\n  justification: b.justification || '', requester_email: b.requester_email || '',\n  revision_of: chain, revision_count: next_count,\n};\nconst qp = Object.keys(fields).map(k => enc(k) + '=' + enc(String(fields[k]))).join('&');\nconst revise_link = 'https://your-n8n.example/form/fde-procurement-request' + '?' + qp;\nreturn [{ json: { ...b, now, MAX, count, next_count, chain, is_final, revise_link } }];"
+        "jsCode": "// Bound the loop and build the prefilled revision link. Chain root = original request_id.\nconst b = $json.body || $json;\nconst now = new Date().toISOString();\nconst MAX = 3;\nconst count = Number(b.revision_count) || 0;\nconst chain = b.revision_of || b.request_id;\nconst is_final = count >= MAX;\nconst next_count = count + 1;\n// URLSearchParams is not in the Code sandbox; build the query string by hand.\nconst enc = encodeURIComponent;\nconst fields = {\n  business_unit: b.business_unit || '', sku: b.sku || '', item_description: b.item_description || '',\n  quantity: (b.quantity != null ? b.quantity : ''), category: b.category || '',\n  cost_center: b.cost_center || '', preferred_vendor: b.preferred_vendor || '',\n  justification: b.justification || '', requester_email: b.requester_email || '',\n  revision_of: chain, revision_count: next_count,\n};\nconst qp = Object.keys(fields).map(k => enc(k) + '=' + enc(String(fields[k]))).join('&');\nconst revise_link = 'https://your-n8n.example/form/fde-procurement-request-dev' + '?' + qp;\nreturn [{ json: { ...b, now, MAX, count, next_count, chain, is_final, revise_link } }];"
       },
       "id": "rl-prepare",
       "name": "Prepare Revision",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        512,
+        496,
         640
       ]
     },
@@ -172,7 +172,7 @@
         928,
         624
       ],
-      "webhookId": "6cf4bfe6-f21d-45f2-86c7-6a58226828c9",
+      "webhookId": "1becf616-b3db-4927-a5e5-b353221ecc39",
       "credentials": {
         "smtp": {
           "id": "elHiM0orvNm4MEUT",
@@ -210,7 +210,7 @@
       "typeVersion": 2,
       "position": [
         928,
-        800
+        784
       ]
     },
     {
@@ -234,7 +234,7 @@
       "typeVersion": 1.1,
       "position": [
         1152,
-        800
+        784
       ]
     },
     {
@@ -253,9 +253,9 @@
       "typeVersion": 2.1,
       "position": [
         928,
-        944
+        928
       ],
-      "webhookId": "2fbedb48-9df8-471f-958d-7d0f77f74279",
+      "webhookId": "8c0469ea-8871-465b-ae3e-c1bf29c8c068",
       "credentials": {
         "smtp": {
           "id": "elHiM0orvNm4MEUT",
@@ -279,7 +279,7 @@
       "typeVersion": 4.2,
       "position": [
         1152,
-        944
+        928
       ],
       "onError": "continueRegularOutput"
     },

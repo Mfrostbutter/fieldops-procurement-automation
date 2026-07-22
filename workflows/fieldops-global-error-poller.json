@@ -16,8 +16,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        0,
-        40
+        16,
+        176
       ]
     },
     {
@@ -56,8 +56,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        260,
-        40
+        240,
+        176
       ]
     },
     {
@@ -69,8 +69,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        520,
-        40
+        560,
+        176
       ]
     },
     {
@@ -101,8 +101,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        780,
-        40
+        784,
+        176
       ],
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
@@ -117,8 +117,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1040,
-        40
+        1088,
+        176
       ]
     },
     {
@@ -135,8 +135,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
-        -20
+        1296,
+        176
       ]
     },
     {
@@ -152,8 +152,8 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1300,
-        140
+        1200,
+        320
       ],
       "id": "fdcb722f-db8e-4ce4-810f-c318e5457323",
       "name": "Send an Email",
@@ -168,68 +168,82 @@
       "onError": "continueRegularOutput"
     },
     {
+      "parameters": {
+        "content": "# Global Error Poller\nWatches every workflow on this instance. Every 5 minutes it pulls error executions from the n8n API, drops the ones it has already reported, and alerts on new failures. The first run after activation seeds silently, so turning it on never floods the channel.",
+        "width": 1592,
+        "color": 7
+      },
       "id": "st-poller-title",
       "name": "st-poller-title",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -40,
-        -260
-      ],
-      "parameters": {
-        "content": "# Global Error Poller\nWatches every workflow on this instance. Every 5 minutes it pulls error executions from the n8n API, drops the ones it has already reported, and alerts on new failures. The first run after activation seeds silently, so turning it on never floods the channel.",
-        "height": 160,
-        "width": 1560,
-        "color": 7
-      }
+        -80,
+        -224
+      ]
     },
     {
+      "parameters": {
+        "content": "## Poll\n**Every 5 minutes** fires the schedule. **List Errors** calls the n8n API (`/executions?status=error`) with the `FDE_N8N_API` key.",
+        "height": 572,
+        "width": 540,
+        "color": 3
+      },
       "id": "st-poller-poll",
       "name": "st-poller-poll",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -40,
-        -40
-      ],
-      "parameters": {
-        "content": "## Poll\n**Every 5 minutes** fires the schedule. **List Errors** calls the n8n API (`/executions?status=error`) with the `FDE_N8N_API` key.",
-        "height": 220,
-        "width": 540,
-        "color": 3
-      }
+        -80,
+        -48
+      ]
     },
     {
+      "parameters": {
+        "content": "## Dedup + enrich\n**Filter New Errors** drops execution ids it has already seen (first run seeds; bounded to the last 500). **Get Detail** pulls the failing node and error message for each new one.",
+        "height": 572,
+        "width": 540,
+        "color": 4
+      },
       "id": "st-poller-dedup",
       "name": "st-poller-dedup",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        500,
-        -40
-      ],
-      "parameters": {
-        "content": "## Dedup + enrich\n**Filter New Errors** drops execution ids it has already seen (first run seeds; bounded to the last 500). **Get Detail** pulls the failing node and error message for each new one.",
-        "height": 220,
-        "width": 540,
-        "color": 4
-      }
+        480,
+        -48
+      ]
     },
     {
+      "parameters": {
+        "content": "## Notify\n**Build** assembles the alert, **Post to #errors** sends it to Slack, and **Send an Email** sends the same alert. Email ships disabled: set a real mail server on the SMTP credential and `ERROR_NOTIFY_EMAIL`, then enable the node.",
+        "height": 572,
+        "width": 480,
+        "color": 5
+      },
       "id": "st-poller-notify",
       "name": "st-poller-notify",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
         1040,
-        -40
-      ],
+        -48
+      ]
+    },
+    {
       "parameters": {
-        "content": "## Notify\n**Build** assembles the alert, **Post to #errors** sends it to Slack, and **Send an Email** sends the same alert. Email ships disabled: set a real mail server on the SMTP credential and `ERROR_NOTIFY_EMAIL`, then enable the node.",
-        "height": 300,
-        "width": 480,
-        "color": 5
-      }
+        "content": "",
+        "height": 784,
+        "width": 1632
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "4c873d6a-f508-4668-a529-1c534d0b54f0",
+      "name": "Sticky Note"
     }
   ],
   "connections": {

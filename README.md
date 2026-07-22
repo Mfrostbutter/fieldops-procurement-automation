@@ -32,6 +32,7 @@ workflows/
   fieldops-procure-to-approve.dev.json    DEV copy for testing changes
   fieldops-regression-runner.json         the evaluation harness
   fieldops-revision-loop.json             reject -> revise -> re-approve loop
+  fieldops-revision-loop.dev.json         DEV copy of the revision loop
   fieldops-global-error-poller.json       watches every workflow, alerts on failure
 golden/
   run_golden.mjs           the regression runner

@@ -65,6 +65,14 @@
           "mode": "id",
           "cachedResultName": "FieldOps - Procure-to-Approve (DEV)"
         },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
         "mode": "each",
         "options": {}
       },
@@ -128,7 +136,7 @@
       "parameters": {
         "operation": "completion",
         "completionTitle": "Regression result",
-        "completionMessage": "={{ $('Summary').item.json.summary }}",
+        "completionMessage": "={{ $('Summary').first().json.summary }}",
         "options": {}
       },
       "type": "n8n-nodes-base.form",
@@ -162,7 +170,7 @@
         "content": "### 1 - Pick a business unit\n\nALL, or one BU so an owner checks only their own rules. Runs on submit; the result shows on the form completion page.",
         "height": 480,
         "width": 440,
-        "color": 7
+        "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -177,8 +185,7 @@
       "parameters": {
         "content": "### 2 - The golden set\n\nKnown requests with known-correct outcomes, filtered to the chosen BU. Add or edit a case here. Regenerated from `golden/golden_cases.json`.",
         "height": 480,
-        "width": 312,
-        "color": 7
+        "width": 312
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -194,7 +201,7 @@
         "content": "### 3 - Run the real logic\n\nSends each case through the DEV workflow's actual decision nodes in **test mode**: no Slack, no approval wait, no event write. Not a copy, so it cannot drift from production.",
         "height": 480,
         "width": 328,
-        "color": 7
+        "color": 5
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -210,7 +217,7 @@
         "content": "### 4 - Check + summarize\n\n**Assert** compares each returned decision to its expected outcome. **Summary** counts pass or fail and builds the report. Green means every request still routes to the right place for the right amount.",
         "height": 480,
         "width": 548,
-        "color": 7
+        "color": 5
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -226,12 +233,12 @@
         "content": "### 5 - Findings out\n\n**Post to #regression** sends the pass/fail summary to Slack every run (a side effect, onError continue, so a Slack outage never blocks the page). **Show Result** renders the same summary on the form completion page.",
         "height": 480,
         "width": 560,
-        "color": 7
+        "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1436,
+        1440,
         352
       ],
       "id": "st-out",
@@ -287,6 +294,11 @@
       "main": [
         [
           {
+            "node": "Show Result",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Post to #regression",
             "type": "main",
             "index": 0
@@ -296,13 +308,7 @@
     },
     "Post to #regression": {
       "main": [
-        [
-          {
-            "node": "Show Result",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     }
   },
