@@ -1,0 +1,301 @@
+{
+  "name": "FieldOps - Global Error Poller",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "ff26a443-e8a1-41b0-b1b2-7a5d7b9445ca",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/api/v1/executions",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "error"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "includeData",
+              "value": "false"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $env.FDE_N8N_API }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b4ecb0e8-18e7-42c6-bbb6-b1c8dba06429",
+      "name": "List Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedup error executions by id. First run seeds (no alerts); after that only new ones.\nconst resp = $input.first().json;\nconst rows = (resp && resp.data) || [];\nconst store = $getWorkflowStaticData('global');\nif (!Array.isArray(store.seen)) store.seen = [];\nconst seen = new Set(store.seen);\nconst selfWfId = $workflow.id;\nconst firstRun = store.seeded !== true;\nconst out = [];\nfor (const e of rows) {\n  const id = String(e.id);\n  if (e.workflowId === selfWfId) { seen.add(id); continue; }  // never alert on the poller itself\n  if (seen.has(id)) continue;\n  seen.add(id);\n  if (!firstRun) {\n    out.push({ json: { execId: id, workflowId: e.workflowId, startedAt: e.startedAt } });\n  }\n}\nstore.seen = Array.from(seen).slice(-500);  // bound the memory\nstore.seeded = true;\nreturn out;"
+      },
+      "id": "c8a12c87-1c1d-48bb-8d4e-3d18f4ad4c15",
+      "name": "Filter New Errors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:5678/api/v1/executions/{{ $json.execId }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "includeData",
+              "value": "true"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $env.FDE_N8N_API }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "20c898ba-5ef2-4f30-91d3-052384db6554",
+      "name": "Get Detail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        40
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build the alert from the enriched execution detail (Slack + email).\nconst d = $json || {};\nconst prev = $('Filter New Errors').item.json;\nconst execId = String(d.id || prev.execId || '');\nconst wfId = d.workflowId || prev.workflowId || '';\nconst wfName = (d.workflowData && d.workflowData.name) || 'unknown workflow';\nlet node = 'n/a', msg = '';\ntry {\n  const rd = d.data && d.data.resultData;\n  node = (rd && rd.lastNodeExecuted) || 'n/a';\n  msg = (rd && rd.error && rd.error.message) || '';\n} catch (e) {}\nif (msg && msg.length > 500) msg = msg.slice(0, 500);\nconst errText = msg || '(no message captured)';\nconst link = 'https://your-n8n.example/workflow/' + wfId + '/executions/' + execId;\nconst text =\n  ':warning: *n8n workflow error*\\n' +\n  '*Workflow:* ' + wfName + ' (`' + wfId + '`)\\n' +\n  '*Node:* ' + node + '\\n' +\n  '*Error:* ' + errText + '\\n' +\n  '*Execution:* <' + link + '|' + execId + '>';\nconst email_html =\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5\">' +\n  '<p><strong>n8n workflow error</strong></p>' +\n  '<table style=\"border-collapse:collapse\">' +\n  '<tr><td style=\"padding:2px 10px 2px 0;color:#666\">Workflow</td><td style=\"padding:2px 0\"><strong>' + wfName + '</strong> (' + wfId + ')</td></tr>' +\n  '<tr><td style=\"padding:2px 10px 2px 0;color:#666\">Node</td><td style=\"padding:2px 0\"><strong>' + node + '</strong></td></tr>' +\n  '<tr><td style=\"padding:2px 10px 2px 0;color:#666\">Error</td><td style=\"padding:2px 0\">' + errText + '</td></tr>' +\n  '<tr><td style=\"padding:2px 10px 2px 0;color:#666\">Execution</td><td style=\"padding:2px 0\"><a href=\"' + link + '\">' + execId + '</a></td></tr>' +\n  '</table></div>';\nreturn { json: {\n  slack_payload: { text },\n  workflow: wfName, workflow_id: wfId, node: node, error: errText,\n  exec_id: execId, link: link,\n  email_subject: 'n8n workflow error: ' + wfName + ' (exec ' + execId + ')',\n  email_html: email_html\n}};"
+      },
+      "id": "06350d2a-0568-468d-a5e7-f3bc37b1d634",
+      "name": "Build Slack Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERRORS_SLACK_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.slack_payload) }}",
+        "options": {}
+      },
+      "id": "3f3965c0-a1d3-4b56-9937-5311151aa9cb",
+      "name": "Post to #errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "n8n-monitor@fieldops.example",
+        "toEmail": "={{ $env.ERROR_NOTIFY_EMAIL }}",
+        "subject": "={{ $json.email_subject }}",
+        "html": "={{ $json.email_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        140
+      ],
+      "id": "fdcb722f-db8e-4ce4-810f-c318e5457323",
+      "name": "Send an Email",
+      "webhookId": "b5fc209e-173a-44d9-a1d9-97c9fee1a3b1",
+      "credentials": {
+        "smtp": {
+          "id": "elHiM0orvNm4MEUT",
+          "name": "FieldOps SMTP (placeholder - set your mail server)"
+        }
+      },
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "st-poller-title",
+      "name": "st-poller-title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -260
+      ],
+      "parameters": {
+        "content": "# Global Error Poller\nWatches every workflow on this instance. Every 5 minutes it pulls error executions from the n8n API, drops the ones it has already reported, and alerts on new failures. The first run after activation seeds silently, so turning it on never floods the channel.",
+        "height": 160,
+        "width": 1560,
+        "color": 7
+      }
+    },
+    {
+      "id": "st-poller-poll",
+      "name": "st-poller-poll",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -40
+      ],
+      "parameters": {
+        "content": "## Poll\n**Every 5 minutes** fires the schedule. **List Errors** calls the n8n API (`/executions?status=error`) with the `FDE_N8N_API` key.",
+        "height": 220,
+        "width": 540,
+        "color": 3
+      }
+    },
+    {
+      "id": "st-poller-dedup",
+      "name": "st-poller-dedup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        -40
+      ],
+      "parameters": {
+        "content": "## Dedup + enrich\n**Filter New Errors** drops execution ids it has already seen (first run seeds; bounded to the last 500). **Get Detail** pulls the failing node and error message for each new one.",
+        "height": 220,
+        "width": 540,
+        "color": 4
+      }
+    },
+    {
+      "id": "st-poller-notify",
+      "name": "st-poller-notify",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        -40
+      ],
+      "parameters": {
+        "content": "## Notify\n**Build** assembles the alert, **Post to #errors** sends it to Slack, and **Send an Email** sends the same alert. Email ships disabled: set a real mail server on the SMTP credential and `ERROR_NOTIFY_EMAIL`, then enable the node.",
+        "height": 300,
+        "width": 480,
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "List Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Errors": {
+      "main": [
+        [
+          {
+            "node": "Filter New Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Errors": {
+      "main": [
+        [
+          {
+            "node": "Get Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Detail": {
+      "main": [
+        [
+          {
+            "node": "Build Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Post to #errors",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}

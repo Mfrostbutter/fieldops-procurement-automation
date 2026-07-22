@@ -12,7 +12,7 @@ fix it, change it, or replicate it is here.
 
 | I want to | Go to |
 |---|---|
-| Understand the system | [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) - the three workflows, how they relate, the roadmap |
+| Understand the system | [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) - the workflows, how they relate, the roadmap |
 | See the workflows | [WORKFLOW-BREAKDOWN.md](WORKFLOW-BREAKDOWN.md) - each workflow on the canvas, with what it does |
 | Operate or change a node | [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) - every node, what it does, what to change. Rendered: https://your-runbook.example |
 | Stand it up myself | [SETUP.md](SETUP.md) - import the workflows, seed the tables, set the secrets |
@@ -21,7 +21,7 @@ fix it, change it, or replicate it is here.
 ## What's here
 
 ```
-WORKFLOW-ARCHITECTURE.md   the system: three workflows, how they relate, roadmap
+WORKFLOW-ARCHITECTURE.md   the system: the workflows, how they relate, roadmap
 WORKFLOW-BREAKDOWN.md      each workflow on the canvas, with what it does
 SETUP.md                   stand it up in your own n8n
 docs/
@@ -33,6 +33,7 @@ workflows/
   fieldops-procure-to-approve.dev.json    DEV copy for testing changes
   fieldops-regression-runner.json         the evaluation harness
   fieldops-revision-loop.json             reject -> revise -> re-approve loop
+  fieldops-global-error-poller.json       watches every workflow, alerts on failure
 golden/
   run_golden.mjs           the regression runner
   golden_cases.json        19 known requests, known-correct outcomes

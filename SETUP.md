@@ -7,16 +7,17 @@ Nothing here needs a code change; the whole system is config over canvas.
 
 - n8n, version 2.x (self-hosted or cloud).
 - Node 18+ (to run the golden set locally).
-- A Slack workspace with incoming webhooks for four channels.
+- A Slack workspace with incoming webhooks for five channels (or any other messaging provider; see the note under "Set the secrets").
 
 ## 1. Import the workflows
 
-Import the four JSONs under `workflows/` (n8n → Workflows → Import from File):
+Import the five JSONs under `workflows/` (n8n → Workflows → Import from File):
 
 - `fieldops-procure-to-approve.prod.json` - production, the live workflow.
 - `fieldops-procure-to-approve.dev.json` - DEV, the copy you edit and test.
 - `fieldops-regression-runner.json` - the evaluation harness.
 - `fieldops-revision-loop.json` - the reject, revise, re-approve loop.
+- `fieldops-global-error-poller.json` - watches every workflow and alerts on failure.
 
 The DEV workflow uses its own form path so it can run alongside production. The
 Runner calls DEV by workflow id; after import, open the Runner's **Run DEV logic**
@@ -27,6 +28,12 @@ production flow's approval card links its **Reject** button to the first, and fi
 second after it writes the `REJECTED` row. Both are wired by path, so importing and
 activating is enough. The pre-filled revision link and the reject/notify URLs use the
 instance host in `your-n8n.example`; point them at your own base URL.
+
+The Global Error Poller reads the n8n API to find failed runs, so it needs the n8n
+**public API enabled** and an API key. Create a key (Settings → n8n API) and expose it to
+the workflow as `FDE_N8N_API`. The poller self-calls `http://localhost:5678/api/v1`, so it
+runs against the same instance it monitors. On first activation it seeds silently and posts
+nothing; from then on it alerts only on new failures.
 
 ## 2. Create the config tables
 
@@ -55,7 +62,7 @@ every request from it default-denies to a human until somebody writes its policy
 
 ## 3. Set the secrets
 
-Four Slack incoming-webhook URLs, referenced as environment variables so they never
+Five Slack incoming-webhook URLs, referenced as environment variables so they never
 live in the workflow. An export of these workflows leaks nothing.
 
 | Variable | Channel |
@@ -64,18 +71,32 @@ live in the workflow. An export of these workflows leaks nothing.
 | `APPROVALS_SLACK_WEBHOOK` | #approvals, needs a human |
 | `ORDERS_SLACK_WEBHOOK` | #orders, decided |
 | `REGRESSION_SLACK_WEBHOOK` | #regression, evaluation results (DEV runner) |
+| `ERRORS_SLACK_WEBHOOK` | #errors, a workflow failed (error poller) |
+
+Two more, both for the error poller:
+
+| Variable | What |
+|---|---|
+| `FDE_N8N_API` | n8n API key the poller uses to read failed executions |
+| `ERROR_NOTIFY_EMAIL` | recipient for the error email (only used once the email node is enabled) |
 
 Inject them into the n8n container from your secret store at runtime. Rotating a
 channel is a secret change and a restart, not a workflow edit.
+
+**Messaging provider is a swap, not a dependency.** Slack is used here because it was on
+hand. Every notification, including the error alert, is a single send node at the end of
+its path, so pointing them at Teams, Google Chat, WhatsApp, or any provider the customer
+runs is a node swap, not a rebuild.
 
 ## 3b. Enable email notifications (optional)
 
 The workflows carry an email layer that **ships disabled**: five `emailSend` nodes in the
 production flow (request received, awaiting approval, auto-approval, order approved, and a
-parse bounce-back), plus two in the Revision Loop (revision requested, final rejection). To
-turn it on: create an SMTP credential for your mail server, assign it to those nodes, and
-enable them. Each node continues on error, so an unreachable mail server never breaks a run.
-Until you do this, Slack is the notification channel.
+parse bounce-back), two in the Revision Loop (revision requested, final rejection), and one
+in the Error Poller (the failure alert, sent to `ERROR_NOTIFY_EMAIL`). To turn it on: create
+an SMTP credential for your mail server, assign it to those nodes, and enable them. Each node
+continues on error, so an unreachable mail server never breaks a run. Until you do this,
+Slack is the notification channel.
 
 ## 4. Verify
 

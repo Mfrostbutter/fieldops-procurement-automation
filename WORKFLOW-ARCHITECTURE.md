@@ -1,7 +1,7 @@
 # Workflow architecture
 
 FieldOps Co. procurement approval, automated in n8n. This is the system view: the
-three workflows that make it up, what each does, how they relate, and what is on
+workflows that make it up, what each does, how they relate, and what is on
 the roadmap. For the node-by-node runbook, see [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md).
 
 ## First Principle: Config over Canvas
@@ -42,7 +42,7 @@ to run the business.
 ## The workflows
 
 A dev/prod split with an evaluation harness, so a change can be proven before it
-reaches production, plus the revision loop that runs alongside it.
+reaches production, plus the revision loop and an error monitor that run alongside it.
 
 ### 1. Production: `workflows/fieldops-procure-to-approve.prod.json`
 
@@ -73,6 +73,22 @@ a runtime companion, not part of the promote loop above. Every pass links to its
 root (`revision_of`), so rework rate and end-to-end case cycle time are queries against
 `pr_events`. See [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) → "Zone:
 REVISION LOOP" for the node reference and the terminate-and-link rationale.
+
+### 5. Global Error Poller: `workflows/fieldops-global-error-poller.json`
+
+An operational monitor that runs alongside the others. Every 5 minutes it pulls the
+error executions from the n8n API, drops the ones it has already reported (the first
+run after activation seeds silently, so turning it on never floods the channel),
+enriches each new failure with its workflow name, failing node, and error message, and
+posts an alert to an **#errors** Slack channel. It carries an email node on the same
+alert, which ships disabled until a mail server is set on the SMTP credential and
+`ERROR_NOTIFY_EMAIL` is set. So if any workflow fails during the pilot or the 90-day
+window, the team is notified immediately instead of finding out when a request is stuck.
+It reads the n8n API with a dedicated key (`FDE_N8N_API`) and never alerts on itself.
+
+The notification channel is a swap, not a dependency. Slack is used here because it was
+on hand; the same alert ports to Teams, Google Chat, WhatsApp, or any provider the
+customer runs by changing the final send node.
 
 ### How they relate
 

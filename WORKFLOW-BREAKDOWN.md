@@ -31,7 +31,7 @@ the node-by-node runbook, see [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFEREN
 
 ---
 
-## How the three workflows connect
+## How the workflows connect
 
 ```
 edit DEV  ->  run the Regression Runner  ->  green?  ->  promote DEV to Production
@@ -42,7 +42,8 @@ edit DEV  ->  run the Regression Runner  ->  green?  ->  promote DEV to Producti
 A dev/prod split with an evaluation harness, so a change is proven before it reaches
 production. The golden set is the artifact the whole system rests on: 19 known requests
 with known-correct outcomes that run the workflow's own decision code, so it cannot drift
-from what is deployed.
+from what is deployed. The revision loop and the error poller run alongside this, not as
+part of the promote loop.
 
 ---
 
@@ -124,6 +125,28 @@ chain. That chain is what makes rework rate and end-to-end case cycle time queri
 `pr_events`.
 
 ![Revision Loop: reason capture, then the thin-bridge revision loop](screenshots/04-revision-loop.png)
+
+---
+
+## 5. Global Error Poller: watch every workflow, alert on failure
+
+An operational monitor that runs on its own schedule, separate from the request flow. Three
+short zones:
+
+- **Poll** - every 5 minutes a schedule fires and the workflow calls the n8n API for
+  executions with `status=error`, authenticated with a dedicated key (`FDE_N8N_API`).
+- **Dedup + enrich** - a Code node drops execution ids it has already reported (the first run
+  after activation seeds silently and is bounded to the last 500 ids, so turning it on never
+  floods the channel), then each new failure is enriched with its workflow name, failing node,
+  and error message.
+- **Notify** - the alert posts to an **#errors** Slack channel, and an email node carries the
+  same alert. Email ships disabled until a mail server is set on the SMTP credential and
+  `ERROR_NOTIFY_EMAIL` is set.
+
+So if any workflow fails during the pilot or the 90-day window, the team hears about it
+immediately instead of finding out when a request is stuck. The channel is a swap, not a
+dependency: Slack is used because it was on hand, and the same alert ports to Teams, Google
+Chat, WhatsApp, or any provider by changing the final send node.
 
 ---
 
