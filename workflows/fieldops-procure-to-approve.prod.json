@@ -4,7 +4,7 @@
   {
    "parameters": {
     "content": "",
-    "height": 2528,
+    "height": 2512,
     "width": 2800
    },
    "type": "n8n-nodes-base.stickyNote",
@@ -57,7 +57,56 @@
       },
       {
        "fieldLabel": "sku",
-       "placeholder": "e.g. MRO-1001",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "MRO-1001"
+         },
+         {
+          "option": "MRO-1002"
+         },
+         {
+          "option": "MRO-1003"
+         },
+         {
+          "option": "MRO-1004"
+         },
+         {
+          "option": "MRO-1005"
+         },
+         {
+          "option": "MRO-1006"
+         },
+         {
+          "option": "MRO-1007"
+         },
+         {
+          "option": "MRO-1008"
+         },
+         {
+          "option": "MRO-1009"
+         },
+         {
+          "option": "MRO-1010"
+         },
+         {
+          "option": "MRO-1011"
+         },
+         {
+          "option": "MRO-1012"
+         },
+         {
+          "option": "MRO-1013"
+         },
+         {
+          "option": "MRO-1014"
+         },
+         {
+          "option": "MRO-1015"
+         }
+        ]
+       },
        "requiredField": true
       },
       {
@@ -83,18 +132,54 @@
       },
       {
        "fieldLabel": "cost_center",
-       "placeholder": "e.g. CC-4400"
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "CC-4400"
+         },
+         {
+          "option": "CC-6100"
+         }
+        ]
+       }
       },
       {
        "fieldLabel": "preferred_vendor",
-       "placeholder": "optional, e.g. VEND-A"
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "VEND-A"
+         },
+         {
+          "option": "VEND-B"
+         },
+         {
+          "option": "VEND-C"
+         }
+        ]
+       }
       },
       {
        "fieldLabel": "justification"
       },
       {
        "fieldLabel": "requester_email",
-       "fieldType": "email",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "lena.hoff@fieldops.example"
+         },
+         {
+          "option": "mark.reyes@fieldops.example"
+         },
+         {
+          "option": "priya.das@fieldops.example"
+         }
+        ]
+       },
        "requiredField": true
       },
       {
@@ -163,7 +248,7 @@
    "typeVersion": 1.1,
    "position": [
     1296,
-    544
+    496
    ],
    "id": "vendor-catalog-lookup",
    "name": "Vendor Catalog Lookup",
@@ -178,8 +263,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1488,
-    544
+    1504,
+    496
    ],
    "id": "best-price--maverick-flag",
    "name": "Best Price + Maverick Flag",
@@ -214,8 +299,8 @@
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    1664,
-    544
+    1696,
+    496
    ],
    "id": "catalog-match-if",
    "name": "Catalog Match?",
@@ -401,8 +486,8 @@
    "type": "n8n-nodes-base.switch",
    "typeVersion": 3.2,
    "position": [
-    -336,
-    1504
+    -320,
+    1568
    ],
    "id": "route-switch",
    "name": "Route Decision",
@@ -433,8 +518,8 @@
    "type": "n8n-nodes-base.set",
    "typeVersion": 3.4,
    "position": [
-    960,
-    1600
+    560,
+    1568
    ],
    "id": "auto-approved",
    "name": "Auto-Approved",
@@ -448,8 +533,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1520,
-    1520
+    1584,
+    1568
    ],
    "id": "build-event-row",
    "name": "Build Event Row",
@@ -474,8 +559,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    1792,
-    1520
+    1808,
+    1568
    ],
    "id": "events-insert",
    "name": "Write Event Row",
@@ -617,7 +702,7 @@
    "name": "Post to #requests",
    "notesInFlow": true,
    "onError": "continueRegularOutput",
-   "notes": "Webhook URL from the container env (fed from the secret store). Nothing secret is stored in this workflow, so an export leaks nothing.\nTerminal branch."
+   "notes": "Webhook URL from the container env (fed from Infisical). Nothing secret is stored in this workflow, so an export leaks nothing.\nTerminal branch."
   },
   {
    "parameters": {
@@ -626,8 +711,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    224,
-    1616
+    288,
+    1792
    ],
    "id": "build-approval-card",
    "name": "Build Approval Card",
@@ -646,8 +731,8 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    416,
-    1616
+    480,
+    1792
    ],
    "id": "post-approvals",
    "name": "Post to #approvals",
@@ -665,8 +750,8 @@
    "type": "n8n-nodes-base.wait",
    "typeVersion": 1.1,
    "position": [
-    608,
-    1616
+    688,
+    1792
    ],
    "id": "wait-decision",
    "name": "Wait for Decision",
@@ -681,8 +766,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    784,
-    1616
+    880,
+    1792
    ],
    "id": "apply-decision",
    "name": "Apply Decision",
@@ -696,8 +781,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1280,
-    1520
+    1344,
+    1568
    ],
    "id": "build-outcome",
    "name": "Build Outcome",
@@ -716,8 +801,8 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    944,
-    1840
+    1456,
+    1808
    ],
    "id": "post-orders",
    "name": "Post to #orders",
@@ -822,7 +907,7 @@
   },
   {
    "parameters": {
-    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason)\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email.\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.\n\n**After the gate, the outcome forks by state.** *Approved?* takes an approval to the order post and the ready-for-PO email. *Rejected?* fires the [Revision Loop](https://your-runbook.example/#zone-revision-loop).\n\n**Reject is a loop, not a terminal state.** The Reject button opens a mandatory reason form, which resumes the request with `decision=reject` and the reason. The requester gets the reason plus a pre-filled link back into intake; the revised request is a NEW run, re-priced and re-routed from scratch, so a smaller order can now auto-approve. Capped at 3 attempts, then REJECTED_FINAL to requester + cost owner. Every pass links to the original request, so rework rate is a query.",
+    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason)\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email.\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.\n\n**After the gate, the outcome forks by state.** *Approved?* takes an approval to the order post and the ready-for-PO email. *Rejected?* fires the [Revision Loop](https://your-runbook.example/#zone-revision-loop).\n\n",
     "height": 992,
     "width": 944,
     "color": 4
@@ -1054,14 +1139,14 @@
   {
    "parameters": {
     "content": "# EMAIL NOTIFICAIONS\n\n**email notifications at each step**\n",
-    "height": 352,
+    "height": 368,
     "width": 1120,
     "color": "#161A8D"
    },
    "type": "n8n-nodes-base.stickyNote",
    "position": [
     80,
-    2128
+    2112
    ],
    "typeVersion": 1,
    "id": "b0d23f84-106a-4b34-a240-9c4d4a30878f",
@@ -1070,13 +1155,13 @@
   {
    "parameters": {
     "content": "",
-    "height": 384,
+    "height": 400,
     "width": 1152
    },
    "type": "n8n-nodes-base.stickyNote",
    "position": [
     64,
-    2112
+    2096
    ],
    "typeVersion": 1,
    "id": "a03db3bf-9ab0-4fdf-9d96-d5a034fc84bc",
@@ -1112,8 +1197,8 @@
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    688,
-    1856
+    1232,
+    1808
    ]
   },
   {
@@ -1146,8 +1231,8 @@
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    240,
-    1840
+    1456,
+    2336
    ]
   },
   {
@@ -1164,10 +1249,41 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    448,
-    1824
+    1776,
+    2320
    ],
    "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "content": "",
+    "height": 400,
+    "width": 832
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    1232,
+    2096
+   ],
+   "typeVersion": 1,
+   "id": "4d688354-e750-4c8f-a28f-d74ba76618e6",
+   "name": "Sticky Note4"
+  },
+  {
+   "parameters": {
+    "content": "## [5a. REVISION LOOP](https://your-runbook.example/#zone-revision-loop)\n\n**Reject is a loop, not a terminal state.** The Reject button opens a mandatory reason form, which resumes the request with `decision=reject` and the reason. The requester gets the reason plus a pre-filled link back into intake; the revised request is a NEW run, re-priced and re-routed from scratch, so a smaller order can now auto-approve. Capped at 3 attempts, then REJECTED_FINAL to requester + cost owner. Every pass links to the original request, so rework rate is a query.",
+    "height": 368,
+    "width": 800,
+    "color": 3
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    1248,
+    2112
+   ],
+   "typeVersion": 1,
+   "id": "6fa314bc-61e2-4d18-b0ae-a6af41641ef5",
+   "name": "Sticky Note5"
   }
  ],
  "connections": {

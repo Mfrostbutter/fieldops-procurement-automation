@@ -27,7 +27,56 @@
       },
       {
        "fieldLabel": "sku",
-       "placeholder": "e.g. MRO-1001",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "MRO-1001"
+         },
+         {
+          "option": "MRO-1002"
+         },
+         {
+          "option": "MRO-1003"
+         },
+         {
+          "option": "MRO-1004"
+         },
+         {
+          "option": "MRO-1005"
+         },
+         {
+          "option": "MRO-1006"
+         },
+         {
+          "option": "MRO-1007"
+         },
+         {
+          "option": "MRO-1008"
+         },
+         {
+          "option": "MRO-1009"
+         },
+         {
+          "option": "MRO-1010"
+         },
+         {
+          "option": "MRO-1011"
+         },
+         {
+          "option": "MRO-1012"
+         },
+         {
+          "option": "MRO-1013"
+         },
+         {
+          "option": "MRO-1014"
+         },
+         {
+          "option": "MRO-1015"
+         }
+        ]
+       },
        "requiredField": true
       },
       {
@@ -53,18 +102,54 @@
       },
       {
        "fieldLabel": "cost_center",
-       "placeholder": "e.g. CC-4400"
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "CC-4400"
+         },
+         {
+          "option": "CC-6100"
+         }
+        ]
+       }
       },
       {
        "fieldLabel": "preferred_vendor",
-       "placeholder": "optional, e.g. VEND-A"
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "VEND-A"
+         },
+         {
+          "option": "VEND-B"
+         },
+         {
+          "option": "VEND-C"
+         }
+        ]
+       }
       },
       {
        "fieldLabel": "justification"
       },
       {
        "fieldLabel": "requester_email",
-       "fieldType": "email",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "lena.hoff@fieldops.example"
+         },
+         {
+          "option": "mark.reyes@fieldops.example"
+         },
+         {
+          "option": "priya.das@fieldops.example"
+         }
+        ]
+       },
        "requiredField": true
       },
       {
@@ -403,7 +488,7 @@
    "type": "n8n-nodes-base.set",
    "typeVersion": 3.4,
    "position": [
-    960,
+    704,
     1616
    ],
    "id": "auto-approved",
@@ -587,7 +672,7 @@
    "name": "Post to #requests",
    "notesInFlow": true,
    "onError": "continueRegularOutput",
-   "notes": "Webhook URL from the container env (fed from the secret store). Nothing secret is stored in this workflow, so an export leaks nothing.\nTerminal branch."
+   "notes": "Webhook URL from the container env (fed from Infisical). Nothing secret is stored in this workflow, so an export leaks nothing.\nTerminal branch."
   },
   {
    "parameters": {
@@ -596,8 +681,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    224,
-    1712
+    288,
+    1872
    ],
    "id": "build-approval-card",
    "name": "Build Approval Card",
@@ -616,8 +701,8 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    400,
-    1712
+    480,
+    1872
    ],
    "id": "post-approvals",
    "name": "Post to #approvals",
@@ -635,8 +720,8 @@
    "type": "n8n-nodes-base.wait",
    "typeVersion": 1.1,
    "position": [
-    592,
-    1712
+    672,
+    1872
    ],
    "id": "wait-decision",
    "name": "Wait for Decision",
@@ -651,8 +736,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    784,
-    1712
+    880,
+    1872
    ],
    "id": "apply-decision",
    "name": "Apply Decision",
@@ -686,8 +771,8 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    960,
-    1856
+    1536,
+    1872
    ],
    "id": "post-orders",
    "name": "Post to #orders",
@@ -896,7 +981,7 @@
   },
   {
    "parameters": {
-    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason)\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email.\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.\n\n**After the gate, the outcome forks by state.** *Approved?* takes an approval to the order post and the ready-for-PO email. *Rejected?* fires the [Revision Loop](https://your-runbook.example/#zone-revision-loop).\n\n**Reject is a loop, not a terminal state.** The Reject button opens a mandatory reason form, which resumes the request with `decision=reject` and the reason. The requester gets the reason plus a pre-filled link back into intake; the revised request is a NEW run, re-priced and re-routed from scratch, so a smaller order can now auto-approve. Capped at 3 attempts, then REJECTED_FINAL to requester + cost owner. Every pass links to the original request, so rework rate is a query.",
+    "content": "## [5. APPROVE](https://your-runbook.example/#zone-approve)\n**One gate, three routes.**\n\nIN: a routed request.\nOUT: approved / rejected / escalated.\nPOSTS: #approvals (undecided items only, so it stays a work queue).\n\nSingle, dual and default-deny differ in their DATA (approver, mode, reason)\nSlack buttons carry this execution's signed, single-use resume URL. The same link works from email.\nON FAILURE: a timeout carries no decision, which IS the escalation signal. The fallback approver comes from the rules table.\n\n**After the gate, the outcome forks by state.** *Approved?* takes an approval to the order post and the ready-for-PO email. *Rejected?* fires the [Revision Loop](https://your-runbook.example/#zone-revision-loop).\n\n",
     "height": 1072,
     "width": 960,
     "color": 4
@@ -1248,8 +1333,8 @@
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    656,
-    1904
+    1232,
+    1856
    ]
   },
   {
@@ -1282,8 +1367,8 @@
    "type": "n8n-nodes-base.if",
    "typeVersion": 2.2,
    "position": [
-    224,
-    1904
+    1424,
+    2400
    ]
   },
   {
@@ -1300,10 +1385,41 @@
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
    "position": [
-    432,
-    1888
+    1648,
+    2384
    ],
    "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "content": "",
+    "height": 384,
+    "width": 816
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    1264,
+    2160
+   ],
+   "typeVersion": 1,
+   "id": "fa70aaab-aee3-4342-9d13-ddf5a9d9caa9",
+   "name": "Sticky Note4"
+  },
+  {
+   "parameters": {
+    "content": "## [5a. REVISION LOOP](https://your-runbook.example/#zone-revision-loop)\n\n**Reject is a loop, not a terminal state.** The Reject button opens a mandatory reason form, which resumes the request with `decision=reject` and the reason. The requester gets the reason plus a pre-filled link back into intake; the revised request is a NEW run, re-priced and re-routed from scratch, so a smaller order can now auto-approve. Capped at 3 attempts, then REJECTED_FINAL to requester + cost owner. Every pass links to the original request, so rework rate is a query.",
+    "height": 352,
+    "width": 784,
+    "color": 3
+   },
+   "type": "n8n-nodes-base.stickyNote",
+   "position": [
+    1280,
+    2176
+   ],
+   "typeVersion": 1,
+   "id": "b981fff8-a75c-4192-9d39-591272e82b5b",
+   "name": "Sticky Note5"
   }
  ],
  "connections": {
