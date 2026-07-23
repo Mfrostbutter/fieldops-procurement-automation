@@ -73,7 +73,7 @@ values.
 One row per business unit, category, and spend band. This single table decides
 routing, approvers, cost center, lead-time tolerance, escalation, and the
 auto-approve floor. A business unit with **no rows here default-denies by
-design** (BU-02 and BU-04 both demonstrate this in the pilot: registered units with no policy rows, so every request from them routes to a human).
+design** (BU-04 demonstrates this in the pilot: a registered unit with no policy rows, so every request from it routes to a human).
 
 | Column | Meaning | Change it to |
 |---|---|---|
@@ -99,7 +99,7 @@ Seeded pilot rows:
 | BU-03 | MRO | 5000 | 25000 | single | 0 | hub.manager | ops.controller | CC-6100 | 20 | 12 |
 | BU-03 | MRO | 25000 | 100000 | dual | 0 | regional.director | bu.controller | CC-6100 | 20 | 24 |
 
-(Approver values shown short; live rows carry full `@fieldops.example` addresses. **BU-02 and BU-04 have no rows and default-deny.**)
+(Approver values shown short; live rows carry full `@fieldops.example` addresses. **BU-04 has no rows and default-denies.**)
 
 ### [`business_units`](https://your-n8n.example/projects/YOUR_PROJECT_ID/datatables/oC6Oj6bBq4SWtdGG), the BU registry
 
