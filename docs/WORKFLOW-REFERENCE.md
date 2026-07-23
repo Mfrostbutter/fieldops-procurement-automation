@@ -73,7 +73,7 @@ values.
 One row per business unit, category, and spend band. This single table decides
 routing, approvers, cost center, lead-time tolerance, escalation, and the
 auto-approve floor. A business unit with **no rows here default-denies by
-design** (that is exactly what BU-02 demonstrates in the pilot).
+design** (BU-02 and BU-04 both demonstrate this in the pilot: registered units with no policy rows, so every request from them routes to a human).
 
 | Column | Meaning | Change it to |
 |---|---|---|
@@ -99,7 +99,7 @@ Seeded pilot rows:
 | BU-03 | MRO | 5000 | 25000 | single | 0 | hub.manager | ops.controller | CC-6100 | 20 | 12 |
 | BU-03 | MRO | 25000 | 100000 | dual | 0 | regional.director | bu.controller | CC-6100 | 20 | 24 |
 
-(Approver values shown short; live rows carry full `@fieldops.example` addresses. **BU-02 has no rows and default-denies.**)
+(Approver values shown short; live rows carry full `@fieldops.example` addresses. **BU-02 and BU-04 have no rows and default-deny.**)
 
 ### [`business_units`](https://your-n8n.example/projects/YOUR_PROJECT_ID/datatables/oC6Oj6bBq4SWtdGG), the BU registry
 
@@ -111,7 +111,7 @@ Seeded pilot rows:
 
 The thin registry of valid business units and their names. Policy does **not**
 live here; it lives in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). Pilot rows: BU-01 Rheinfeld Plant, BU-02
-Ostwerk Assembly, BU-03 Nordhafen Logistics.
+Ostwerk Assembly, BU-03 Nordhafen Logistics, BU-04 Westhafen Distribution.
 
 ### [`vendor_catalog`](https://your-n8n.example/projects/YOUR_PROJECT_ID/datatables/w8I8nRcAngNcFXqr), the approved supplier list
 
@@ -204,7 +204,7 @@ Justification: PPE restock, Nordhafen line
 
 | Label (canonical) | Required | Schema field | Allowed values | Notes |
 |---|---|---|---|---|
-| Business Unit | yes | `business_unit` | BU-01, BU-02, BU-03 | must have [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows or it default-denies |
+| Business Unit | yes | `business_unit` | BU-01, BU-02, BU-03, BU-04 | must have [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows or it default-denies |
 | SKU | yes | `sku` | any [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) SKU | unknown SKU routes to sourcing |
 | Quantity | yes | `quantity` | positive number | `two boxes` or `0` bounces, never defaults |
 | Item Description | no | `item_description` | free text | display only |
@@ -985,7 +985,7 @@ Common changes, and the one place each is made. None of these touch a code node.
 
 | You want to | Change | Where |
 |---|---|---|
-| Add business unit BU-04 | add a dropdown option, add [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows (one per band), add a [`business_units`](https://your-runbook.example/#business_units-the-bu-registry) row | form + 2 tables |
+| Add business unit BU-05 | add a dropdown option, add [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows (one per band), add a [`business_units`](https://your-runbook.example/#business_units-the-bu-registry) row | form + 2 tables |
 | Move an approval threshold | edit `threshold_min` / `threshold_max` on the band row | `doa_rules` |
 | Change who approves | edit `approver_primary` / `approver_fallback` | `doa_rules` |
 | Require two approvers on a band | set `approval_mode` = `dual` | `doa_rules` |
