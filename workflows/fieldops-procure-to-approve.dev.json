@@ -726,7 +726,7 @@
       "parameters": {
         "resume": "webhook",
         "limitWaitTime": true,
-        "resumeAmount": "={{ $json.escalation_hours || 24 }}",
+        "resumeAmount": "={{ $('Build Approval Card').item.json.escalation_hours }}",
         "options": {}
       },
       "type": "n8n-nodes-base.wait",
