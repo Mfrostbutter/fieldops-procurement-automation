@@ -43,7 +43,7 @@ Coverage across every route and every default-deny reason:
 - lead-time-aware selection: the same SKU picks a different vendor for BU-01
   (30-day tolerance) than BU-03 (20-day), and BU-03 can pay a **premium** or a
   **negative saving** to hit its deadline
-- default-deny on: no rule row (BU-02), lead-time breach (only source too slow),
+- default-deny on: no rule row (BU-04), lead-time breach (only source too slow),
   amount outside every band
 - no catalog match to sourcing (RFQ)
 - maverick flag when the requester names a vendor that is not the best source

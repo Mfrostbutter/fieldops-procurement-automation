@@ -196,9 +196,9 @@
     }
   },
   {
-    "name": "bu02-no-rule-row",
+    "name": "bu04-no-rule-row",
     "input": {
-      "business_unit": "BU-02",
+      "business_unit": "BU-04",
       "sku": "MRO-1002",
       "quantity": 10,
       "category": "MRO"
