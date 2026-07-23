@@ -35,7 +35,9 @@ workflows/
   fieldops-revision-loop.dev.json         DEV copy of the revision loop
   fieldops-global-error-poller.json       watches every workflow, alerts on failure
 golden/
-  run_golden.mjs           the regression runner
+  run_golden.mjs           the regression runner (decision correctness)
+  check_config.mjs         config-integrity gate: invariants + drift vs snapshot
+  pull_live_config.mjs     export live tables in the snapshot shape (for drift)
   golden_cases.json        19 known requests, known-correct outcomes
   golden_config.json       point-in-time snapshot of the config tables
   README.md
@@ -60,6 +62,15 @@ node golden/run_golden.mjs
 The suite runs the production workflow's own decision code against a config
 snapshot, so it cannot drift from what is deployed. It is the concrete answer to
 "how do you know green means correct."
+
+That proves the decision *logic*. To prove the live *config* is intact (a deleted
+or edited table row), run the integrity gate, which fails on any broken invariant
+or any drift from the approved snapshot:
+
+```
+node golden/pull_live_config.mjs > live.json   # needs N8N_URL / N8N_EMAIL / N8N_PASSWORD
+node golden/check_config.mjs live.json
+```
 
 ## Working together
 

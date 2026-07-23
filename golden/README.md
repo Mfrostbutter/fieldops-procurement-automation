@@ -50,6 +50,43 @@ Coverage across every route and every default-deny reason:
 - the quantity guard: `0` and `"two boxes"` both **throw** rather than defaulting
   to 1 (the silent-wrong-order bug the guard exists to stop)
 
+## Config integrity: does green mean the config is intact?
+
+The golden cases prove the decision **logic** is correct against a known config.
+They do not, on their own, prove the **live config** is intact: a case only
+catches a deleted or changed table row if that row would change a decision the
+case checks. Delete a row no case exercises, and the cases stay green. Coverage
+is exactly as good as the case set.
+
+`check_config.mjs` closes that gap with two checks that do not depend on case
+coverage:
+
+- **Invariants** - structural rules the tables must always hold: the threshold
+  ladder starts at 0 with no gaps or overlaps, every `doa_rules` row references a
+  real BU, approvers and escalation windows are present, every routed category is
+  sourceable in the catalog.
+- **Drift** - a row-level diff of a supplied config against the approved
+  `golden_config.json` snapshot, failing on ANY added, removed, or changed row.
+
+```
+# structural invariants on the approved snapshot
+node check_config.mjs
+
+# invariants on the LIVE config + drift vs the snapshot
+node pull_live_config.mjs > live.json      # exports the 3 tables in snapshot shape
+node check_config.mjs live.json
+```
+
+`pull_live_config.mjs` reads the tables from the instance (`N8N_URL`, `N8N_EMAIL`,
+`N8N_PASSWORD`; discovers the tables by name) and prints them in the
+`golden_config.json` shape. Point `check_config.mjs` at that file and a deleted
+row shows up two ways at once: the invariant that row was holding up fails, and
+the drift diff names the exact missing row. Exit 0 = clean, 1 = any invariant
+failure or any drift.
+
+So the golden cases answer "is the logic right"; `check_config.mjs` answers "is
+the live config the one we approved." You want both.
+
 ## Refresh the config snapshot
 
 `golden_config.json` is a point-in-time copy of the `doa_rules`,
