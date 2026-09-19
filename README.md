@@ -14,7 +14,7 @@ fix it, change it, or replicate it is here.
 |---|---|
 | Understand the system | [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) - the workflows, how they relate, the roadmap |
 | See the workflows | [WORKFLOW-BREAKDOWN.md](WORKFLOW-BREAKDOWN.md) - each workflow on the canvas, with what it does |
-| Operate or change a node | [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) - every node, what it does, what to change. Rendered: https://your-runbook.example |
+| Operate or change a node | [docs/WORKFLOW-REFERENCE.md](docs/WORKFLOW-REFERENCE.md) - every node, what it does, what to change |
 | Stand it up myself | [SETUP.md](SETUP.md) - import the workflows, seed the tables, set the secrets |
 | Prove a change is safe | [golden/](golden/) - the regression suite |
 
@@ -24,6 +24,8 @@ fix it, change it, or replicate it is here.
 WORKFLOW-ARCHITECTURE.md   the system: the workflows, how they relate, roadmap
 WORKFLOW-BREAKDOWN.md      each workflow on the canvas, with what it does
 SETUP.md                   stand it up in your own n8n
+AI-SETUP-PROMPT.md         paste into your AI assistant to operate/extend the repo
+ATTRIBUTION.md             built on n8n; sample data is synthetic
 docs/
   WORKFLOW-REFERENCE.md    node-by-node operator runbook
 screenshots/               canvas screenshots for the breakdown

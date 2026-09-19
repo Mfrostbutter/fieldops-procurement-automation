@@ -38,7 +38,7 @@ to run the business.
   requester and approver by email.
 
 The six-zone flow, the reject-to-revision loop under APPROVE, and the config tables
-that drive it are laid out on the [architecture whiteboard](https://www.figma.com/board/workflow-board).
+that drive it are laid out zone by zone in [WORKFLOW-BREAKDOWN.md](WORKFLOW-BREAKDOWN.md), with a canvas screenshot per workflow.
 
 ## The workflows
 

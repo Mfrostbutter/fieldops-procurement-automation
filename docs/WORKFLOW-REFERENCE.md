@@ -2,8 +2,8 @@
 
 FieldOps Co. procurement pilot. This is the maintainer's companion to the n8n
 workflow: every node, what it does, and what you would change to make it yours.
-It pairs with the [architecture whiteboard](https://www.figma.com/board/workflow-board)
-(the six-zone flow) and the design notes in `ARCHITECTURE.md`.
+It pairs with the [workflow breakdown](../WORKFLOW-BREAKDOWN.md) (a canvas screenshot
+per workflow) and the design notes in [WORKFLOW-ARCHITECTURE.md](../WORKFLOW-ARCHITECTURE.md).
 
 ## How to use this document
 
@@ -110,7 +110,7 @@ Seeded pilot rows:
 | `active` | in service |
 
 The thin registry of valid business units and their names. Policy does **not**
-live here; it lives in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). Pilot rows: BU-01 Rheinfeld Plant, BU-02
+live here; it lives in [`doa_rules`](#doa_rules-the-policy-master). Pilot rows: BU-01 Rheinfeld Plant, BU-02
 Ostwerk Assembly, BU-03 Nordhafen Logistics, BU-04 Westhafen Distribution.
 
 ### [`vendor_catalog`](https://your-n8n.example/projects/YOUR_PROJECT_ID/datatables/w8I8nRcAngNcFXqr), the approved supplier list
@@ -204,8 +204,8 @@ Justification: PPE restock, Nordhafen line
 
 | Label (canonical) | Required | Schema field | Allowed values | Notes |
 |---|---|---|---|---|
-| Business Unit | yes | `business_unit` | BU-01, BU-02, BU-03, BU-04 | must have [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows or it default-denies |
-| SKU | yes | `sku` | any [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) SKU | unknown SKU routes to sourcing |
+| Business Unit | yes | `business_unit` | BU-01, BU-02, BU-03, BU-04 | must have [`doa_rules`](#doa_rules-the-policy-master) rows or it default-denies |
+| SKU | yes | `sku` | any [`vendor_catalog`](#vendor_catalog-the-approved-supplier-list) SKU | unknown SKU routes to sourcing |
 | Quantity | yes | `quantity` | positive number | `two boxes` or `0` bounces, never defaults |
 | Item Description | no | `item_description` | free text | display only |
 | Category | no (defaults MRO) | `category` | MRO | pilot scope |
@@ -232,14 +232,14 @@ Nodes in execution order, grouped by zone.
 
 IN: a form submission or an email.
 OUT: one normalized request object with a `request_id`.
-READS: [`business_units`](https://your-runbook.example/#business_units-the-bu-registry) (form dropdown).
+READS: [`business_units`](#business_units-the-bu-registry) (form dropdown).
 ON FAILURE: an invalid quantity THROWS. It does not default to 1. A defaulted value is a silent wrong order that reaches a PO.
 
 ### 1. Procurement Request Form  [`formTrigger`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.formtrigger/)
 
 Company web form. Raises a requisition. Fields map one-to-one to the normalized schema.
 
-**What to change:** Add a business unit or category as a dropdown option here, then add the matching [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows (cookbook below). The form is the only place the BU list is typed; everything downstream reads the value.
+**What to change:** Add a business unit or category as a dropdown option here, then add the matching [`doa_rules`](#doa_rules-the-policy-master) rows (cookbook below). The form is the only place the BU list is typed; everything downstream reads the value.
 
 ```json
 {
@@ -385,18 +385,18 @@ return [{ json: {
 
 IN: normalized request.
 OUT: request plus its policy (thresholds, approvers, lead-time tolerance), collapsed to one item.
-READS: [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) (the policy master).
+READS: [`doa_rules`](#doa_rules-the-policy-master) (the policy master).
 LOGIC: load the BU's rule rows, collapse to one item, extract `max_lead_time_days`. Take the strictest tolerance if bands disagree.
 
 ### 7. DoA Rule Lookup  [`dataTable`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable/)
 
-Reads every [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) row for this request's business unit and category. `doa_rules` holds thresholds, approval mode, approvers, cost center, lead-time tolerance, escalation window, and the auto-approve floor.
+Reads every [`doa_rules`](#doa_rules-the-policy-master) row for this request's business unit and category. `doa_rules` holds thresholds, approval mode, approvers, cost center, lead-time tolerance, escalation window, and the auto-approve floor.
 
 **What to change:** This is a table read. Change routing behavior in `doa_rules` (cookbook below), not here. The node only supplies the filter.
 
 ### 8. Load BU Policy  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
-Collapses the business unit's several [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows into one item carrying the request plus its policy, and extracts `max_lead_time_days`. One item prevents a fan-out: a Data Table read runs once per input item, so three band rows would produce three duplicate copies of every vendor at the catalog lookup.
+Collapses the business unit's several [`doa_rules`](#doa_rules-the-policy-master) rows into one item carrying the request plus its policy, and extracts `max_lead_time_days`. One item prevents a fan-out: a Data Table read runs once per input item, so three band rows would produce three duplicate copies of every vendor at the catalog lookup.
 
 **What to change:** Nothing. If a BU's bands disagree on lead-time tolerance, it takes the strictest.
 
@@ -423,13 +423,13 @@ return [{ json: { ...req,
 
 IN: normalized request plus BU policy (`max_lead_time_days`).
 OUT: chosen vendor, unit price, derived amount, savings vs incumbent, flags.
-READS: [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) (approved vendors for the SKU).
+READS: [`vendor_catalog`](#vendor_catalog-the-approved-supplier-list) (approved vendors for the SKU).
 LOGIC: drop vendors over `max_lead_time_days`, sort the rest by unit price, pick the cheapest. The amount is derived from the catalog, never typed by the requester.
 ON FAILURE: no catalog match routes to sourcing, never auto-approve. No vendor in tolerance forces a human.
 
 ### 9. Vendor Catalog Lookup  [`dataTable`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable/)
 
-Reads every [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) row for the requested SKU and category, one row per vendor that lists the item.
+Reads every [`vendor_catalog`](#vendor_catalog-the-approved-supplier-list) row for the requested SKU and category, one row per vendor that lists the item.
 
 **What to change:** A table read. Add or reprice a vendor line in `vendor_catalog`.
 
@@ -569,13 +569,13 @@ Posts the `#requests` message. A parallel branch (a side effect), never inline i
 
 IN: priced request.
 OUT: a route (`auto_approve`, `single_approver`, `dual_approver`, `default_deny`) plus approver.
-READS: [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) bands.
+READS: [`doa_rules`](#doa_rules-the-policy-master) bands.
 LOGIC: match the derived amount to exactly one band, then apply the band's approval mode.
 ON FAILURE: no rule row, a lead-time breach, an amount outside every band, or overlapping bands all default-deny to a human. It never auto-approves on a gap.
 
 ### 15. Threshold Eval + Self-Check  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
-Deterministic evaluation against the [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) bands, plus a self-check that grades its own output. Default-denies on any gap: no rule row, a lead-time breach, an amount outside every band, or overlapping bands.
+Deterministic evaluation against the [`doa_rules`](#doa_rules-the-policy-master) bands, plus a self-check that grades its own output. Default-denies on any gap: no rule row, a lead-time breach, an amount outside every band, or overlapping bands.
 
 **What to change:** Behavior is entirely `doa_rules` data. Move a threshold, change an approver, or switch a band to dual approval in the table. The self-check (exactly one band must match) is a guardrail; leave it in place.
 
@@ -653,7 +653,7 @@ Switch on the computed route. `auto_approve` goes to the auto-approved state; `s
 
 Terminal state for a request under the BU's auto-approve floor. Records `APPROVED` and posts the outcome, no human.
 
-**What to change:** The floor is `auto_approve_under` in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). Set it to 0 to disable auto-approval for a band.
+**What to change:** The floor is `auto_approve_under` in [`doa_rules`](#doa_rules-the-policy-master). Set it to 0 to disable auto-approval for a band.
 
 
 ---
@@ -744,13 +744,13 @@ Posts the approval card to the reviewer channel and hands off to the Wait node.
 
 Pauses the execution until a decision link is clicked (webhook resume) or the timeout elapses. The paused execution is the state; no external store needed.
 
-**What to change:** The timeout is `escalation_hours` from [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master). A resume with no decision is the escalation signal.
+**What to change:** The timeout is `escalation_hours` from [`doa_rules`](#doa_rules-the-policy-master). A resume with no decision is the escalation signal.
 
 ### 21. Apply Decision  [`code`](https://docs.n8n.io/build/code-in-n8n/using-the-code-node)
 
 Resolves the outcome from the resumed webhook query: approve, reject, or (on timeout, no decision) escalate to the fallback approver. A dual-approval approve records gate 1 of 2.
 
-**What to change:** Nothing. The fallback approver is `approver_fallback` in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), so escalation targets are config, not code.
+**What to change:** Nothing. The fallback approver is `approver_fallback` in [`doa_rules`](#doa_rules-the-policy-master), so escalation targets are config, not code.
 
 ```js
 // Resume from Slack button, email link, or Wait timeout. Timeout = no decision = escalate.
@@ -784,7 +784,7 @@ return [{ json: { ...base, decision: 'timed_out', decided_by: null,
 ## Zone: RECORD
 
 IN: any terminal state (approved, rejected, escalated, needs-sourcing).
-OUT: one Slack outcome post plus one [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log) audit row.
+OUT: one Slack outcome post plus one [`pr_events`](#pr_events-the-audit-log) audit row.
 WRITES: `pr_events`.
 LOGIC: post the outcome for every terminal state, then append one audit row with cycle-time and revision-lineage fields. No PO number; the ERP owns that sequence.
 
@@ -924,7 +924,7 @@ return [{ json: {
 
 ### 25. Write Event Row  [`dataTable`](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable/)
 
-Appends the row to [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log). This table is the measurement instrument the 90-day review queries, and the input to rule-drift detection.
+Appends the row to [`pr_events`](#pr_events-the-audit-log). This table is the measurement instrument the 90-day review queries, and the input to rule-drift detection.
 
 **What to change:** Point at your `pr_events` table id. In production, branch here to a database or warehouse for reporting.
 
@@ -968,13 +968,13 @@ Splits the two outcomes: under the cap, ask for a revision; at the cap, close it
 
 ### R7. Under the cap: notify + record
 
-`Build Revision Row` -> `Write Revision Row` writes a `REVISION_REQUESTED` row to [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log) (the reason, the attempt number, the link). In parallel, `Email Revision Request` sends the requester the reason plus the pre-filled link, and `Post Revision to Slack` posts to `#orders`. The revised submission is a fresh production run.
+`Build Revision Row` -> `Write Revision Row` writes a `REVISION_REQUESTED` row to [`pr_events`](#pr_events-the-audit-log) (the reason, the attempt number, the link). In parallel, `Email Revision Request` sends the requester the reason plus the pre-filled link, and `Post Revision to Slack` posts to `#orders`. The revised submission is a fresh production run.
 
 ### R8. At the cap: close as REJECTED_FINAL
 
 `Build Final Row` -> `Write Final Row` writes a `REJECTED_FINAL` row. `Email Final Rejection` tells the requester and the cost owner it is closed with no further revisions, and `Post Final to Slack` posts the same. No pre-filled link.
 
-**The metric this unlocks:** every pass links to the chain root, so rework rate is `count(revision_of IS NOT NULL) / count(distinct chain)`, and end-to-end cycle time spans the first submission to the final decision, both queries against [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log). The client-carried `revision_count` is the pilot's cap; a server-side recount of the chain is the hardening step.
+**The metric this unlocks:** every pass links to the chain root, so rework rate is `count(revision_of IS NOT NULL) / count(distinct chain)`, and end-to-end cycle time spans the first submission to the final decision, both queries against [`pr_events`](#pr_events-the-audit-log). The client-carried `revision_count` is the pilot's cap; a server-side recount of the chain is the hardening step.
 
 
 ---
@@ -985,14 +985,14 @@ Common changes, and the one place each is made. None of these touch a code node.
 
 | You want to | Change | Where |
 |---|---|---|
-| Add business unit BU-05 | add a dropdown option, add [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master) rows (one per band), add a [`business_units`](https://your-runbook.example/#business_units-the-bu-registry) row | form + 2 tables |
+| Add business unit BU-05 | add a dropdown option, add [`doa_rules`](#doa_rules-the-policy-master) rows (one per band), add a [`business_units`](#business_units-the-bu-registry) row | form + 2 tables |
 | Move an approval threshold | edit `threshold_min` / `threshold_max` on the band row | `doa_rules` |
 | Change who approves | edit `approver_primary` / `approver_fallback` | `doa_rules` |
 | Require two approvers on a band | set `approval_mode` = `dual` | `doa_rules` |
 | Let small spend auto-approve | raise `auto_approve_under` (0 disables) | `doa_rules` |
 | Tighten or relax delivery speed | edit `max_lead_time_days` | `doa_rules` |
 | Change the escalation clock | edit `escalation_hours` | `doa_rules` |
-| Add or reprice a vendor | add / edit the SKU-vendor row | [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list) |
+| Add or reprice a vendor | add / edit the SKU-vendor row | [`vendor_catalog`](#vendor_catalog-the-approved-supplier-list) |
 | Add a new item | add `vendor_catalog` rows, one per vendor | `vendor_catalog` |
 | Move a Slack channel | rotate the `*_SLACK_WEBHOOK` secret | secret store |
 
@@ -1067,7 +1067,7 @@ outcome; a red run prints a per-field diff, and you decide whether the case or t
 logic is wrong.
 
 **Refresh the config snapshot.** `golden_config.json` is a point-in-time copy of
-[`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), [`vendor_catalog`](https://your-runbook.example/#vendor_catalog-the-approved-supplier-list), and [`business_units`](https://your-runbook.example/#business_units-the-bu-registry). When those tables change,
+[`doa_rules`](#doa_rules-the-policy-master), [`vendor_catalog`](#vendor_catalog-the-approved-supplier-list), and [`business_units`](#business_units-the-bu-registry). When those tables change,
 re-dump them into it, regenerate the expected values from the current logic, and
 **review the diff by hand** before committing:
 
@@ -1129,14 +1129,14 @@ The weekly query that matters: requests that entered and never terminated. n8n w
 show you green executions; green is not the same as done. The golden set is the
 artifact that keeps this true after a config change, so run it after every rule edit.
 
-Cycle time and stall rate read straight off [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log): `cycle_seconds` per row gives
+Cycle time and stall rate read straight off [`pr_events`](#pr_events-the-audit-log): `cycle_seconds` per row gives
 median and p90 elapsed time, and the stall rate is the share of rows over your SLA. No
 separate instrumentation, and the before/after comparison uses the same definition on
 both sides.
 
 ## Troubleshooting
 
-**Everything from one business unit is denying.** It has no rows in [`doa_rules`](https://your-runbook.example/#doa_rules-the-policy-master), or
+**Everything from one business unit is denying.** It has no rows in [`doa_rules`](#doa_rules-the-policy-master), or
 its bands overlap. Check `route_reason` on the event row.
 
 **A request took an unexpected vendor.** Check `max_lead_time_days` for that unit:
@@ -1149,7 +1149,7 @@ actioned. Expected behaviour, not a fault.
 **Nothing arrived in Slack.** The webhook URLs come from the container env; check
 they are present before suspecting the workflow.
 
-**It is 2am and it is broken.** Find the `request_id` in [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log), read the last
+**It is 2am and it is broken.** Find the `request_id` in [`pr_events`](#pr_events-the-audit-log), read the last
 transition, and the failure is in the next step. Nothing is lost, because state is a
 row, not a variable in a running process.
 
@@ -1211,4 +1211,4 @@ continue, and Slack is the live channel.
   Slack button cannot carry an Access cookie. A first-class Slack app is the
   hardening step.
 - **Dedup enforcement.** `request_id` is deterministic and ready; a single
-  [`pr_events`](https://your-runbook.example/#pr_events-the-audit-log) lookup before routing closes it.
+  [`pr_events`](#pr_events-the-audit-log) lookup before routing closes it.

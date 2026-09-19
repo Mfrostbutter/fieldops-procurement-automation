@@ -1,0 +1,12 @@
+# Normalize all text to LF on checkout and in the repo.
+* text=auto eol=lf
+
+*.md    text eol=lf
+*.json  text eol=lf
+*.mjs   text eol=lf
+*.js    text eol=lf
+*.py    text eol=lf
+*.txt   text eol=lf
+*.toml  text eol=lf
+
+*.png   binary

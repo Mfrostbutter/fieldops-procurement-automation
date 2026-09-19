@@ -1,0 +1,22 @@
+# gitleaks config for a public example repo.
+# Extends the built-in rules; adds an allowlist for the intentional placeholders
+# and synthetic sample data so scans stay signal, not noise.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders and synthetic example data, not real secrets."
+regexes = [
+  '''your-n8n\.example''',
+  '''your-runbook\.example''',
+  '''admin@example\.com''',
+  '''YOUR_PROJECT_ID''',
+  '''@fieldops\.example''',
+  # env-var references injected at runtime, never literal values
+  '''\$env\.[A-Z_]+''',
+  '''\{\{\s*\$env\.[A-Z_]+\s*\}\}''',
+]
+paths = [
+  '''golden/golden_config.json''',   # synthetic config snapshot
+  '''golden/golden_cases.json''',    # synthetic test cases
+]

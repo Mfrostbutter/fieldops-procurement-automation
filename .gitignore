@@ -4,3 +4,9 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# local config-drift dump from golden/pull_live_config.mjs
+live.json
+
+# local-only Second Brain / editor routing markers
+.brain-entity

@@ -4,7 +4,7 @@ A deterministic regression suite for the procurement workflow. Known inputs,
 known-correct outcomes. Run it after any change to the workflow or the config
 tables to confirm nothing silently broke.
 
-This is the artifact the whole submission argues for: the workflow has no LLM,
+This is the artifact the whole system rests on: the workflow has no LLM,
 so its correctness is a **test suite**, not a model evaluation. "Green" on the
 canvas means every node ran without throwing. The golden set measures the thing
 green is supposed to mean, that each request routed to the right place for the
